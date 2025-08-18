@@ -1,6 +1,6 @@
 /*
-/// Module: evotag
-module evotag::evotag;
+/// Module: truepath
+module truepath::truepath;
 */
 
 // For Move coding conventions, see
