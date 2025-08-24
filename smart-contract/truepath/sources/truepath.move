@@ -139,6 +139,8 @@ public fun verify_and_advance(
 
     let computed = hash::sha3_256(preimage);
 
+    debug::print(&computed);
+    debug::print(&product.head_hash);
     if (!vector_eq(&computed, &product.head_hash)) {
         // wrong/old code -> out-of-sync attempt
         event::emit(Rejected {
