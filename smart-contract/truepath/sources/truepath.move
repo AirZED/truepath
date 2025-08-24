@@ -1,11 +1,15 @@
 /// Module: truepath
 module truepath::truepath;
 
+use std::debug;
+use std::hash;
 use std::option;
 use std::string;
-use std::u32;
 use std::vector;
-use sui::object::UID;
+use sui::event;
+use sui::object::{Self as obj, UID};
+use sui::transfer;
+use sui::tx_context::{Self as tx, TxContext};
 
 public struct Product has key, store {
     id: UID,
@@ -22,7 +26,7 @@ public struct Product has key, store {
 }
 
 /// Emitted when a product is minted
-public struct Minted has drop, store {
+public struct Minted has copy, drop, store {
     product: address,
     sku: string::String,
     batch_id: string::String,
@@ -33,7 +37,7 @@ public struct Minted has drop, store {
 }
 
 /// Emitted on each successful step advance
-public struct Advanced has drop, store {
+public struct Advanced has copy, drop, store {
     product: address,
     stage_index: u32,
     stage_name: string::String,
@@ -45,12 +49,185 @@ public struct Advanced has drop, store {
     time: u64,
 }
 
-///Emitted if someone submits a wrong/old code (out of sync attempts)
-public struct Rejected has drop, store {
+/// Emitted if someone submits a wrong/old code (out of sync attempts)
+public struct Rejected has copy, drop, store {
     product: address,
     stage_index: u32,
     actor: address,
     actor_role: string::String,
     reason: string::String, //"HASH_MISMATCH" | "COMPLETED"
     time: u64,
+}
+
+/// Mint a new product with an already-computed h_0 and a total remaining count.
+/// Security note: DO NOT store the seed on-chain
+public fun mint_product(
+    sku: string::String,
+    batch_id: string::String,
+    head_hash: vector<u8>,
+    total_steps: u32,
+    stage_names: vector<string::String>,
+    stage_roles: vector<string::String>,
+    owner: address,
+    ctx: &mut TxContext,
+) {
+    if (vector::length(&stage_names) != 0 && vector::length(&stage_names) != (total_steps as u64)) {
+        abort 1
+    };
+
+    if (vector::length(&stage_roles) != 0 && vector::length(&stage_roles) != (total_steps as u64)) {
+        abort 2
+    };
+
+    let product = Product {
+        id: obj::new(ctx),
+        sku,
+        batch_id,
+        head_hash,
+        remaining: total_steps,
+        stage: 0,
+        stage_names,
+        stage_roles,
+        current_owner: owner,
+    };
+
+    //printing to see if the product created correctly
+    debug::print(&product);
+
+    event::emit(Minted {
+        product: obj::uid_to_address(&product.id),
+        sku: product.sku,
+        batch_id: product.batch_id,
+        total_steps,
+        head_hash: product.head_hash,
+        owner,
+        time: tx::epoch_timestamp_ms(ctx),
+    });
+
+    transfer::transfer(product, owner);
+}
+
+public fun set_owner(product: &mut Product, new_owner: address) {
+    product.current_owner = new_owner;
+}
+
+/// Verify the *next* preimage and advance exactly one stage
+/// - 'preimage' must satisfy sha3_256(preimage) == current head_hash
+/// - On success: head_hash := preimage, remaining--, stage++.
+/// - Attach context: actor_role and location tag for auditing
+public fun verify_and_advance(
+    product: &mut Product,
+    preimage: vector<u8>,
+    actor_role: string::String,
+    location_tag: option::Option<string::String>,
+    ctx: &mut TxContext,
+) {
+    let now = tx::epoch_timestamp_ms(ctx);
+
+    if (product.remaining == 0) {
+        // Already completed?
+        event::emit(Rejected {
+            product: obj::uid_to_address(&product.id),
+            stage_index: product.stage,
+            actor: tx::sender(ctx),
+            actor_role,
+            reason: string::utf8(b"COMPLETED"),
+            time: now,
+        });
+        abort 10
+    };
+
+    let computed = hash::sha3_256(preimage);
+
+    if (!vector_eq(&computed, &product.head_hash)) {
+        // wrong/old code -> out-of-sync attempt
+        event::emit(Rejected {
+            product: obj::uid_to_address(&product.id),
+            stage_index: product.stage,
+            actor: tx::sender(ctx),
+            actor_role,
+            reason: string::utf8(b"HASH_MISMATCH"),
+            time: now,
+        });
+        abort 11
+    };
+
+    // Resolve expected role/name for this stage (if configured)
+    let (stage_name, expected_role) = resolve_stage(product);
+
+    product.head_hash = preimage;
+    product.remaining = product.remaining - 1;
+
+    let stage_before = product.stage;
+    product.stage = product.stage + 1;
+
+    // Role check: soft validation (We don't abort, we just flag in the event)
+    let ok_role = if (string::length(&expected_role) == 0) {
+        true
+    } else {
+        &actor_role == &expected_role
+    };
+
+    event::emit(Advanced {
+        product: obj::uid_to_address(&product.id),
+        stage_index: stage_before,
+        stage_name,
+        expected_role,
+        actor: tx::sender(ctx),
+        actor_role,
+        location_tag,
+        ok_role,
+        time: now,
+    });
+}
+
+/// Helper: compare vectors byte by byte
+fun vector_eq(a: &vector<u8>, b: &vector<u8>): bool {
+    if (vector::length(a) != vector::length(b)) return false;
+    let mut i = 0;
+    let n = vector::length(a);
+    while (i < n) {
+        if (*vector::borrow(a, i) != *vector::borrow(b, i)) return false;
+        i = i + 1
+    };
+    true
+}
+
+/// Pull expected stage name/role if configured; else return empty strings
+fun resolve_stage(product: &Product): (string::String, string::String) {
+    let mut name = string::utf8(b"");
+    let mut role = string::utf8(b"");
+    let n_names = vector::length(&product.stage_names);
+    let n_roles = vector::length(&product.stage_roles);
+
+    if (n_names != 0 && (product.stage as u64) < n_names) {
+        name = *vector::borrow(&product.stage_names, product.stage as u64);
+    };
+
+    if (n_roles != 0 && (product.stage as u64) < n_roles) {
+        role = *vector::borrow(&product.stage_roles, product.stage as u64);
+    };
+
+    (name, role)
+}
+
+// Getter functions for reading product data
+public fun get_sku(product: &Product): &string::String {
+    &product.sku
+}
+
+public fun get_batch_id(product: &Product): &string::String {
+    &product.batch_id
+}
+
+public fun get_current_stage(product: &Product): u32 {
+    product.stage
+}
+
+public fun get_remaining_steps(product: &Product): u32 {
+    product.remaining
+}
+
+public fun get_head_hash(product: &Product): &vector<u8> {
+    &product.head_hash
 }
