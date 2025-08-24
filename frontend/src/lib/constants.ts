@@ -1,0 +1,1 @@
+export const SMART_CONTRACT_ADDRESS = "0xdb7b5d65044fbf87dacc242c7a96a376b7a96f00e79a96a13209b45f3feba1f2"
