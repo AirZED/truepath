@@ -2,9 +2,6 @@
 module truepath::truepath_tests;
 
 use std::hash::sha3_256;
-use std::option;
-use std::string;
-use std::vector;
 use sui::test_scenario;
 use sui::test_utils;
 use truepath::truepath::{Self, Product};
