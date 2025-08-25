@@ -107,7 +107,8 @@ public fun mint_product(
     transfer::transfer(product, owner);
 }
 
-public fun set_owner(product: &mut Product, new_owner: address) {
+public fun set_owner(product: &mut Product, new_owner: address, ctx: &mut TxContext) {
+    assert!(product.current_owner == tx::sender(ctx), 403);
     product.current_owner = new_owner;
 }
 
@@ -157,6 +158,10 @@ public fun verify_and_advance(
     // Resolve expected role/name for this stage (if configured)
     let (stage_name, expected_role) = resolve_stage(product);
 
+    debug::print(&string::utf8(b"Stage and Role:"));
+    debug::print(&stage_name);
+    debug::print(&expected_role);
+
     product.head_hash = preimage;
     product.remaining = product.remaining - 1;
 
@@ -181,6 +186,23 @@ public fun verify_and_advance(
         ok_role,
         time: now,
     });
+}
+
+/// Variant of verify_and_advance that also transfers the Product object to a new owner after successful advancement.
+/// This integrates full object ownership transfer (using transfer::transfer) with stage progression, common in supply chain scenarios where possession changes hands.
+/// The logical current_owner field is also updated to match the new owner.
+#[allow(lint(custom_state_change))]
+public fun verify_and_advance_and_transfer(
+    mut product: Product,
+    preimage: vector<u8>,
+    actor_role: string::String,
+    location_tag: option::Option<string::String>,
+    new_owner: address,
+    ctx: &mut TxContext,
+) {
+    verify_and_advance(&mut product, preimage, actor_role, location_tag, ctx);
+    set_owner(&mut product, new_owner, ctx);
+    transfer::transfer(product, new_owner);
 }
 
 /// Helper: compare vectors byte by byte
