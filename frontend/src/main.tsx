@@ -2,28 +2,33 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
-import {
-  WalletProvider,
-  AllDefaultWallets,
-  SuiDevnetChain,
-  Chain,
-  SuiTestnetChain,
-  SuietWallet,
-} from "@suiet/wallet-kit";
-import "@suiet/wallet-kit/style.css";
 import { BrowserRouter } from "react-router-dom";
+import {
+  createNetworkConfig,
+  SuiClientProvider,
+  WalletProvider,
+} from "@mysten/dapp-kit";
+import { getFullnodeUrl } from "@mysten/sui/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import "@mysten/dapp-kit/dist/index.css";
 
-const supportedChains: Chain[] = [SuiDevnetChain, SuiTestnetChain];
+// Config options for the networks you want to connect to
+const { networkConfig } = createNetworkConfig({
+  devnet: { url: getFullnodeUrl("devnet") },
+  mainnet: { url: getFullnodeUrl("mainnet") },
+});
+const queryClient = new QueryClient();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <WalletProvider
-        defaultWallets={[...AllDefaultWallets, SuietWallet]}
-        chains={supportedChains}
-      >
-        <App />
-      </WalletProvider>
+      <QueryClientProvider client={queryClient}>
+        <SuiClientProvider networks={networkConfig} defaultNetwork="devnet">
+          <WalletProvider autoConnect={true}>
+            <App />
+          </WalletProvider>
+        </SuiClientProvider>
+      </QueryClientProvider>
     </BrowserRouter>
   </StrictMode>
 );

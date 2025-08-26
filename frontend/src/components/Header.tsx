@@ -4,23 +4,14 @@ import { FiPlus } from "react-icons/fi";
 import { RiCompass3Fill } from "react-icons/ri";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-// import { WalletConnect } from "./WalletConnect";
-import { WalletConnect } from "@/components/wallet/WalletConnect";
 // import logo from "@assets/logo.png";
 import { Link, NavLink } from "react-router-dom";
 import CustomConnectButton from "@/components/wallet/CustomConnectButton";
 
 export const Header = () => {
   return (
-    <header className="w-full px-6 py-2 bg-background/95 backdrop-blur-sm fixed top-[0.8rem] z-1000">
-      <nav className="max-w-7xl mx-auto flex items-center justify-between">
+    <header className="fixed top-0 left-0 right-0 w-full px-6 py-3 bg-background/95 backdrop-blur-sm z-50 border-b border-gray-200 h-16">
+      <nav className="max-w-7xl mx-auto flex items-center justify-between h-full">
         {/* Logo */}
 
         <div className="flex items-center gap-6">
@@ -31,10 +22,9 @@ export const Header = () => {
           <div className="flex items-center gap-6 ml-14">
             <NavLink
               className={({ isActive }) =>
-                `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${
-                  isActive
-                    ? "text-brand-blue font-[500]"
-                    : "text-foreground hover:text-brand-blue font-normal"
+                `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${isActive
+                  ? "text-brand-blue font-[500]"
+                  : "text-foreground hover:text-brand-blue font-normal"
                 }`
               }
               to="/event"
@@ -43,10 +33,9 @@ export const Header = () => {
             </NavLink>
             <NavLink
               className={({ isActive }) =>
-                `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${
-                  isActive
-                    ? "text-brand-blue font-[500]"
-                    : "text-foreground hover:text-brand-blue font-normal"
+                `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${isActive
+                  ? "text-brand-blue font-[500]"
+                  : "text-foreground hover:text-brand-blue font-normal"
                 }`
               }
               to="/explore"
@@ -55,10 +44,9 @@ export const Header = () => {
             </NavLink>
             <NavLink
               className={({ isActive }) =>
-                `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${
-                  isActive
-                    ? "text-brand-blue font-[500]"
-                    : "text-foreground hover:text-brand-blue font-normal"
+                `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${isActive
+                  ? "text-brand-blue font-[500]"
+                  : "text-foreground hover:text-brand-blue font-normal"
                 }`
               }
               to="/about"
@@ -85,17 +73,7 @@ export const Header = () => {
           </Link>
           <RiNotification3Line />
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <CustomConnectButton />
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Connect Wallet</DialogTitle>
-              </DialogHeader>
-              <WalletConnect />
-            </DialogContent>
-          </Dialog>
+          <CustomConnectButton />
         </div>
       </nav>
     </header>
