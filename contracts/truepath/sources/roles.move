@@ -358,6 +358,9 @@ public fun revoke_role(
     let revoker = tx::sender(ctx);
     assert!(table::contains(&registry.roles, participant), 404); // No roles
 
+    // Compute admin privilege before mutably borrowing roles to avoid conflicting borrows
+    let is_admin = has_role(registry, revoker, string::utf8(b"ADMIN"), ctx);
+
     let roles_vec = table::borrow_mut(&mut registry.roles, participant);
     let mut i = 0;
     let len = vector::length(roles_vec);
@@ -366,14 +369,22 @@ public fun revoke_role(
         if (role_cap.role.role_type == role_type) {
             // Check permission: ADMIN, self, or was an endorser
             assert!(
-                has_role(&mut registry, revoker, string::utf8(b"ADMIN"), ctx) ||
+                is_admin ||
                 revoker == participant ||
                 vector::contains(&role_cap.endorsers, &revoker),
                 403,
             );
             // Remove and destroy
             let removed_cap: RoleCapability = vector::remove(roles_vec, i);
-            obj::delete(removed_cap.id); // Clean up object
+            let RoleCapability {
+                id,
+                role: _,
+                owner: _,
+                issued_at: _,
+                expires_at: _,
+                endorsers: _,
+            } = removed_cap;
+            obj::delete(id); // Clean up object
 
             event::emit(RoleRevoked {
                 participant,
@@ -381,7 +392,7 @@ public fun revoke_role(
                 revoked_by: revoker,
                 time: tx::epoch_timestamp_ms(ctx),
             });
-            ()
+            return
         };
         i = i + 1;
     };
