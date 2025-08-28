@@ -5,18 +5,30 @@ module truepath::roles;
 use std::option;
 use std::string::{Self, String};
 use std::vector;
+use sui::coin::{Self, Coin, TreasuryCap};
 use sui::event;
 use sui::object::{Self as obj, UID};
+use sui::pay;
+use sui::sui::SUI;
 use sui::table::{Self, Table};
 use sui::transfer;
 use sui::tx_context::{Self as tx, TxContext};
+use std::debug;
 
 // Constants
 const MIN_ENDORSEMENT_WEIGHT: u64 = 5; // Minimum total trust score weight for endorsements
 
+public enum RoleType has copy, drop, store {
+    Manufacturer,
+    Shipper,
+    Distributor,
+    Retailer,
+    Customer,
+}
+
 // Role types in the supply chain
 public struct Role has copy, drop, store {
-    role_type: String, // "MANUFACTURER", "SHIPPER", "DISTRIBUTOR", "RETAILER", "CUSTOMER", "ADMIN"
+    role_type: RoleType, // "MANUFACTURER", "SHIPPER", "DISTRIBUTOR", "RETAILER", "CUSTOMER", "ADMIN"
     name: String, // Human-readable name
     description: String, // Description of the role
     permissions: vector<String>, // List of permissions, e.g., ["CREATE_PRODUCT"]
@@ -43,7 +55,7 @@ public struct ParticipantRegistry has key {
 // Events
 public struct RoleGranted has copy, drop, store {
     participant: address,
-    role_type: String,
+    role_type: RoleType,
     granted_by: address,
     endorsers: vector<address>,
     time: u64,
@@ -70,8 +82,40 @@ public struct TrustScoreUpdated has copy, drop, store {
     time: u64,
 }
 
+// Helper to convert RoleType to String for events or queries
+fun role_type_to_string(role_type: &RoleType): String {
+    match (role_type) {
+        RoleType::Manufacturer => string::utf8(b"MANUFACTURER"),
+        RoleType::Shipper => string::utf8(b"SHIPPER"),
+        RoleType::Distributor => string::utf8(b"DISTRIBUTOR"),
+        RoleType::Retailer => string::utf8(b"RETAILER"),
+        RoleType::Customer => string::utf8(b"CUSTOMER"),
+    }
+}
+
+// Helper functions to create RoleType instances
+public fun manufacturer_role_type(): RoleType {
+    RoleType::Manufacturer
+}
+
+public fun shipper_role_type(): RoleType {
+    RoleType::Shipper
+}
+
+public fun distributor_role_type(): RoleType {
+    RoleType::Distributor
+}
+
+public fun retailer_role_type(): RoleType {
+    RoleType::Retailer
+}
+
+public fun customer_role_type(): RoleType {
+    RoleType::Customer
+}
+
 // Initialize the participant registry and bootstrap initial ADMIN for deployer
-fun init(ctx: &mut TxContext) {
+public fun init_for_test(ctx: &mut TxContext) {
     let deployer = tx::sender(ctx);
     let mut registry = ParticipantRegistry {
         id: obj::new(ctx),
@@ -80,36 +124,39 @@ fun init(ctx: &mut TxContext) {
         trust_scores: table::new(ctx),
     };
 
-    // Bootstrap deployer as initial ADMIN
-    let admin_role = Role {
-        role_type: string::utf8(b"ADMIN"),
-        name: string::utf8(b"System Admin"),
-        description: string::utf8(b"Initial administrator for bootstrapping"),
+    // Bootstrap deployer as initial Manufacturer
+    let mfr_role = Role {
+        role_type: RoleType::Manufacturer,
+        name: string::utf8(b"System Manufacturer"),
+        description: string::utf8(b"Initial manufacturer for bootstrapping"),
         permissions: vector[
-            string::utf8(b"GRANT_ANY_ROLE"),
-            string::utf8(b"REVOKE_ANY_ROLE"),
-            string::utf8(b"UPDATE_TRUST_SCORE"),
+            string::utf8(b"CREATE_PRODUCT"),
+            string::utf8(b"ADVANCE_STAGE"),
+            string::utf8(b"VIEW_OWN_PRODUCTS"),
+            string::utf8(b"GRANT_DOWNSTREAM_ROLES"),
         ],
     };
-    let admin_cap = RoleCapability {
+    let mfr_cap = RoleCapability {
         id: obj::new(ctx),
-        role: admin_role,
+        role: mfr_role,
         owner: deployer,
         issued_at: tx::epoch_timestamp_ms(ctx),
         expires_at: option::none(),
         endorsers: vector::singleton(deployer), // Self-endorsed
     };
-    add_role_to_participant(&mut registry, deployer, admin_cap, ctx);
-    table::add(&mut registry.trust_scores, deployer, 10); // Higher initial score for deployer
+    add_role_to_participant(&mut registry, deployer, mfr_cap, ctx);
+    // Update the trust score to 10 (higher initial score for deployer)
+    *table::borrow_mut(&mut registry.trust_scores, deployer) = 10;
     transfer::share_object(registry);
 }
+
 
 // Helper to add role to participant's table entry
 fun add_role_to_participant(
     registry: &mut ParticipantRegistry,
     participant: address,
     cap: RoleCapability,
-    ctx: &TxContext,
+    _ctx: &TxContext,
 ) {
     if (!table::contains(&registry.roles, participant)) {
         table::add(&mut registry.roles, participant, vector::empty());
@@ -120,80 +167,121 @@ fun add_role_to_participant(
     vector::push_back(roles_vec, cap);
 }
 
-// Register a new manufacturer (self-registration, but can be endorsed)
-public fun register_manufacturer(
+// Get trust score for a participant
+public fun get_trust_score(registry: &ParticipantRegistry, participant: address): u64 {
+    if (table::contains(&registry.trust_scores, participant)) {
+        *table::borrow(&registry.trust_scores, participant)
+    } else {
+        0
+    }
+}
+
+// New constant for registration fee (in MIST, Sui's smallest unit; 1 SUI = 10^9 MIST)
+const REGISTRATION_FEE: u64 = 1000000000; // 1 SUI
+
+public fun register_role(
     registry: &mut ParticipantRegistry,
+    role_type: RoleType,
     name: String,
     description: String,
-    endorsers: vector<address>, // Community endorsers
+    endorsers: vector<address>, // Community endorsers (optional for Manufacturer)
+    payment: Coin<SUI>, // Required payment for Manufacturer without endorsements
     ctx: &mut TxContext,
 ) {
-    let manufacturer = tx::sender(ctx);
-    let manufacturer_role = Role {
-        role_type: string::utf8(b"MANUFACTURER"),
-        name,
-        description,
-        permissions: vector[
+    let participant = tx::sender(ctx);
+
+    // Calculate total endorsement weight (sum of trust scores, excluding self)
+    let mut total_weight: u64 = 0;
+    let mut i = 0;
+    let len = vector::length(&endorsers);
+    while (i < len) {
+        let endorser = *vector::borrow(&endorsers, i);
+        if (endorser != participant) {
+            // Prevent self-boosting from external list
+            let score = get_trust_score(registry, endorser);
+            total_weight = total_weight + score;
+        };
+        i = i + 1;
+    };
+
+    // Conditional requirements based on role
+    match (role_type) {
+        RoleType::Manufacturer => {
+        debug::print(&total_weight);
+            // For Manufacturer: If no sufficient endorsements, require payment instead
+            if (total_weight < MIN_ENDORSEMENT_WEIGHT) {
+                assert!(coin::value(&payment) >= REGISTRATION_FEE, 408); 
+                // Convert coin to balance (will be destroyed automatically when it goes out of scope)
+                // let payment_balance = coin::into_balance(payment);
+                // transfer::public_transfer(payment, participant)
+            } else {
+                // If endorsed, no fee needed; convert to balance (will be destroyed automatically)
+                // let payment_balance = coin::into_balance(payment);
+            };
+
+                            transfer::public_transfer(payment, participant)
+
+        },
+        _ => {
+            assert!(len > 0, 404); // Require endorsers for non-Manufacturer
+            assert!(total_weight >= MIN_ENDORSEMENT_WEIGHT, 405); // Insufficient weight
+
+                                        transfer::public_transfer(payment, participant)
+
+        },
+    };
+
+    // Define default permissions based on role_type (customize as needed)
+    let permissions = match (role_type) {
+        RoleType::Manufacturer => vector[
             string::utf8(b"CREATE_PRODUCT"),
             string::utf8(b"ADVANCE_STAGE"),
             string::utf8(b"VIEW_OWN_PRODUCTS"),
-            string::utf8(b"GRANT_DOWNSTREAM_ROLES"), // Can grant SHIPPER, etc.
+            string::utf8(b"GRANT_DOWNSTREAM_ROLES"),
         ],
+        RoleType::Shipper => vector[string::utf8(b"ADVANCE_STAGE"), string::utf8(b"VIEW_PRODUCTS")],
+        RoleType::Distributor => vector[
+            string::utf8(b"ADVANCE_STAGE"),
+            string::utf8(b"VIEW_PRODUCTS"),
+        ],
+        RoleType::Retailer => vector[
+            string::utf8(b"ADVANCE_STAGE"),
+            string::utf8(b"VIEW_PRODUCTS"),
+        ],
+        RoleType::Customer => vector[string::utf8(b"VIEW_PRODUCTS")],
     };
+
+    let role = Role {
+        role_type,
+        name,
+        description,
+        permissions,
+    };
+
+    debug::print(&role);
     let capability = RoleCapability {
         id: obj::new(ctx),
-        role: manufacturer_role,
-        owner: manufacturer,
+        role,
+        owner: participant,
         issued_at: tx::epoch_timestamp_ms(ctx),
         expires_at: option::none(),
         endorsers,
     };
-    add_role_to_participant(registry, manufacturer, capability, ctx);
+    add_role_to_participant(registry, participant, capability, ctx);
 
-    // Emit events
-    event::emit(ManufacturerRegistered {
-        manufacturer,
-        name,
-        description,
-        time: tx::epoch_timestamp_ms(ctx),
-    });
+    // Emit event
     event::emit(RoleGranted {
-        participant: manufacturer,
-        role_type: string::utf8(b"MANUFACTURER"),
-        granted_by: manufacturer, // Self-granted, but endorsed
+        participant,
+        role_type,
+        granted_by: participant, // Self-granted, but endorsed if provided
         endorsers,
         time: tx::epoch_timestamp_ms(ctx),
     });
+
 }
 
-// Check if an address has a specific role (with expiration check)
-public fun has_role(
-    registry: &ParticipantRegistry,
-    participant: address,
-    role_type: String,
-    ctx: &TxContext,
-): bool {
-    if (!table::contains(&registry.roles, participant)) {
-        return false
-    };
-    let roles_vec = table::borrow(&registry.roles, participant);
-    let mut i = 0;
-    let len = vector::length(roles_vec);
-    while (i < len) {
-        let role_cap = vector::borrow(roles_vec, i);
-        if (role_cap.role.role_type == role_type) {
-            if (option::is_some(&role_cap.expires_at)) {
-                let expires_at = *option::borrow(&role_cap.expires_at);
-                if (tx::epoch_timestamp_ms(ctx) > expires_at) {
-                    return false
-                }
-            };
-            return true
-        };
-        i = i + 1;
-    };
-    false
-}
+
+/**
 
 // Require a specific role (for enforcement in other modules, aborts if missing)
 public fun require_role(
@@ -234,14 +322,7 @@ public fun get_participant_roles(
     roles
 }
 
-// Get trust score for a participant
-public fun get_trust_score(registry: &ParticipantRegistry, participant: address): u64 {
-    if (table::contains(&registry.trust_scores, participant)) {
-        *table::borrow(&registry.trust_scores, participant)
-    } else {
-        0
-    }
-}
+
 
 // Update trust score (decentralized: caller must be ADMIN or an endorser of the target's roles)
 public fun update_trust_score(
@@ -399,13 +480,7 @@ public fun revoke_role(
     // If not found, abort with error
     abort 406 // Role not found
 }
-
 // Get all participants
 public fun get_all_participants(registry: &ParticipantRegistry): &vector<address> {
     &registry.participants
-}
-
-// Get participant count
-public fun get_participant_count(registry: &ParticipantRegistry): u64 {
-    vector::length(&registry.participants)
 }

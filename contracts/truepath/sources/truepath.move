@@ -10,7 +10,7 @@ use sui::event;
 use sui::object::{Self as obj, UID};
 use sui::transfer;
 use sui::tx_context::{Self as tx, TxContext};
-use truepath::roles;
+// use truepath::roles;
 
 public struct Product has key, store {
     id: UID,
