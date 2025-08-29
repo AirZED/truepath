@@ -109,13 +109,14 @@ public fun get_trust_score(registry: &ParticipantRegistry, participant: address)
     }
 }
 
+#[allow(lint(self_transfer))]
 public fun register_user(
     registry: &mut ParticipantRegistry,
     role_type: String,
     name: String,
     description: String, // Note: Description not in Role, but passed; perhaps ignore or add to User/Role if needed
     endorsers: vector<address>,
-    payment: Coin<SUI>,
+    payment: &mut option::Option<Coin<SUI>>,
     ctx: &mut TxContext,
 ) {
     let participant = tx::sender(ctx);
@@ -136,19 +137,14 @@ public fun register_user(
 
     debug::print(&is_manufacturer);
     if (is_manufacturer) {
-        if (total_weight < MIN_ENDORSEMENT_WEIGHT) {
-            assert!(coin::value(&payment) >= REGISTRATION_FEE, 408);
-            // coin::destroy_zero(payment);
-
-            transfer::public_transfer(payment, @0x4); // Treasury address
-        } else {
-            coin::destroy_zero(payment);
-            // transfer::public_transfer(payment, participant);
-        }
+        let coin = option::extract(payment);
+        assert!(coin::value(&coin) >= REGISTRATION_FEE, 408);
+        transfer::public_transfer(coin, @0x4); // Treasury address
     } else {
+        // assert!(option::is_none(payment), 410); // Payment not allowed for non-manufacturers
         assert!(len > 0, 404);
         assert!(total_weight >= MIN_ENDORSEMENT_WEIGHT, 405);
-        coin::destroy_zero(payment);
+        transfer::public_transfer(option::extract(payment), participant); // Treasury address
     };
 
     let permissions = if (is_manufacturer) {
@@ -209,15 +205,6 @@ public fun has_role(
     };
     let user = table::borrow(&registry.users, participant);
     (user.role.role_type == role_type)
-}
-
-public fun require_role(
-    registry: &ParticipantRegistry,
-    participant: address,
-    role_type: String,
-    ctx: &TxContext,
-) {
-    assert!(has_role(registry, participant, role_type, ctx), 403);
 }
 
 public fun get_participant_roles(

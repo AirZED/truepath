@@ -48,9 +48,20 @@ fun test_create_role() {
             utf8(b"Manufacturer"),
             utf8(b"Initial manufacturer for bootstrapping"),
             endorsers,
-            payment,
+            &mut option::some(payment),
             ts::ctx(&mut scenario),
         );
+
+        //    roles::register_user(
+        //     &mut registry,
+        //     b"MANUFACTURER".to_string(),
+        //     utf8(b"Manufacturer"),
+        //     utf8(b"Initial manufacturer for bootstrapping"),
+        //     endorsers,
+        //     payment,
+        //     ts::ctx(&mut scenario),
+        // );
+
         ts::return_shared(registry);
     };
     ts::next_tx(&mut scenario, USER1_ADDR);
@@ -97,7 +108,7 @@ fun test_vote_or_grant_role() {
             utf8(b"Manufacturer"),
             utf8(b"Initial manufacturer for bootstrapping"),
             endorsers,
-            payment,
+            &mut option::some(payment),
             ts::ctx(&mut scenario),
         );
         ts::return_shared(registry);
