@@ -10,7 +10,7 @@ use sui::sui::SUI;
 use sui::test_scenario::{Self as ts, Scenario};
 use sui::test_utils;
 use sui::tx_context::TxContext;
-use truepath::roles::{Self, ParticipantRegistry, RoleCapability, Role, RoleType, init_for_test};
+use truepath::roles::{Self, ParticipantRegistry, Role, init_for_test};
 
 const USER1_ADDR: address = @0xB;
 const USER2_ADDR: address = @0xC;
@@ -42,9 +42,9 @@ fun test_create_role() {
         // transfer::public_transfer(payment, USER1_ADDR);
         test_utils::print(b"Payment coin value: 1000000000 MIST (1 SUI)");
 
-        roles::register_role(
+        roles::register_user(
             &mut registry,
-            roles::manufacturer_role_type(),
+            b"MANUFACTURER".to_string(),
             utf8(b"Manufacturer"),
             utf8(b"Initial manufacturer for bootstrapping"),
             endorsers,
@@ -53,16 +53,66 @@ fun test_create_role() {
         );
         ts::return_shared(registry);
     };
-    // ts::next_tx(&mut scenario, USER1_ADDR);
+    ts::next_tx(&mut scenario, USER1_ADDR);
     {
-        // let registry = ts::take_shared<ParticipantRegistry>(&scenario);
-        // assert!(
-        //     has_role(&registry, USER1_ADDR, utf8(b"MANUFACTURER"), ts::ctx(&mut scenario)),
-        //     EHasNoRole,
-        // );
-        //  assert!(roles::get_trust_score(&registry, USER1_ADDR) == 1, EWrongTrustScore);
-        //  assert!(roles::get_participant_count(&registry) == 2, EWrongParticipantCount);
-        //  ts::return_shared(registry);
+        let registry = ts::take_shared<ParticipantRegistry>(&scenario);
+
+        let users = roles::get_all_participants(&registry);
+        assert!(vector::length(users) == 1, EWrongParticipantCount);
+        let user1 = vector::borrow(users, 0);
+        assert!(*user1 == USER1_ADDR, EWrongParticipantCount);
+
+        let role = roles::has_role(
+            &registry,
+            USER1_ADDR,
+            b"MANUFACTURER".to_string(),
+            ts::ctx(&mut scenario),
+        );
+        assert!(role, EHasNoRole);
+
+        ts::return_shared(registry);
     };
+    ts::end(scenario);
+}
+
+#[test]
+fun test_vote_or_grant_role() {
+    let mut scenario = ts::begin(USER1_ADDR);
+    let ctx = scenario.ctx();
+    roles::init_for_test(ctx);
+    ts::next_tx(&mut scenario, USER1_ADDR);
+    {
+        let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
+        let mut endorsers = vector::empty<address>();
+        vector::push_back(&mut endorsers, USER1_ADDR);
+        // Create a coin with sufficient value for registration fee (1 SUI = 1,000,000,000 MIST)
+        let payment = coin::mint_for_testing(1000000000, ts::ctx(&mut scenario));
+        // let minted_payment = ts::take_from_address<Coin<SUI>>(&scenario, USER1_ADDR);
+        // transfer::public_transfer(payment, USER1_ADDR);
+        test_utils::print(b"Payment coin value: 1000000000 MIST (1 SUI)");
+
+        roles::register_user(
+            &mut registry,
+            b"MANUFACTURER".to_string(),
+            utf8(b"Manufacturer"),
+            utf8(b"Initial manufacturer for bootstrapping"),
+            endorsers,
+            payment,
+            ts::ctx(&mut scenario),
+        );
+        ts::return_shared(registry);
+    };
+    ts::next_tx(&mut scenario, USER1_ADDR);
+    {
+        let registry = ts::take_shared<ParticipantRegistry>(&scenario);
+
+        let users = roles::get_all_participants(&registry);
+        assert!(vector::length(users) == 1, EWrongParticipantCount);
+        let user1 = vector::borrow(users, 0);
+       
+        ts::return_shared(registry);
+    };
+
+
     ts::end(scenario);
 }
