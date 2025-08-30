@@ -117,9 +117,10 @@ fun test_vote_or_grant_role() {
         let user1 = vector::borrow(users, 0);
 
         ts::return_shared(registry);
-    // };
-// option::destroy_none(payment_option);
-    ts::next_tx(&mut scenario, USER2_ADDR);
+        // };
+        // option::destroy_none(payment_option);
+        ts::next_tx(&mut scenario, USER2_ADDR);
 
-    ts::end(scenario);
+        ts::end(scenario);
+    }
 }

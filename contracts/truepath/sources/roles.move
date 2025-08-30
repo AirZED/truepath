@@ -16,7 +16,7 @@ use sui::transfer;
 use sui::tx_context::{Self as tx, TxContext};
 
 // Constants
-const MIN_ENDORSEMENT_WEIGHT: u64 = 5; // Minimum total trust score weight for endorsements
+const MIN_VOTE_WEIGHT: u64 = 5; // Minimum total trust score weight for endorsements
 const REGISTRATION_FEE: u64 = 1000000000; // 1 SUI in MIST
 
 public struct Role has copy, drop, store {
@@ -33,6 +33,8 @@ public struct User has key, store {
     issued_at: u64,
     role: Role,
     trust_score: u64,
+    approved: bool,
+    total_vote_weight: u64,
 }
 
 public struct ParticipantRegistry has key {
@@ -42,7 +44,7 @@ public struct ParticipantRegistry has key {
 }
 
 public struct RoleGranted has copy, drop, store {
-    participant: address,
+    user: address,
     role_type: String,
     granted_by: address,
     endorsers: vector<address>,
@@ -50,16 +52,30 @@ public struct RoleGranted has copy, drop, store {
 }
 
 public struct RoleRevoked has copy, drop, store {
-    participant: address,
+    user: address,
     role_type: String,
     revoked_by: address,
     time: u64,
 }
 
 public struct TrustScoreUpdated has copy, drop, store {
-    participant: address,
+    user: address,
     new_score: u64,
     updated_by: address,
+    time: u64,
+}
+
+public struct VoteCast has copy, drop, store {
+    voter: address,
+    target: address,
+    weight: u64,
+    time: u64,
+}
+
+public struct VoteRemoved has copy, drop, store {
+    voter: address,
+    target: address,
+    weight: u64,
     time: u64,
 }
 
@@ -95,14 +111,15 @@ public fun init_for_test(ctx: &mut TxContext) {
     transfer::share_object(registry);
 }
 
-fun add_user_to_registry(registry: &mut ParticipantRegistry, participant: address, user: User) {
-    table::add(&mut registry.users, participant, user);
-    vector::push_back(&mut registry.participants, participant);
+fun add_user_to_registry(registry: &mut ParticipantRegistry, user: User) {
+    let owner_addr = user.owner;
+    table::add(&mut registry.users, owner_addr, user);
+    vector::push_back(&mut registry.participants, owner_addr);
 }
 
-public fun get_trust_score(registry: &ParticipantRegistry, participant: address): u64 {
-    if (table::contains(&registry.users, participant)) {
-        let user = table::borrow(&registry.users, participant);
+public fun get_trust_score(registry: &ParticipantRegistry, userAddress: address): u64 {
+    if (table::contains(&registry.users, userAddress)) {
+        let user = table::borrow(&registry.users, userAddress);
         user.trust_score
     } else {
         0
@@ -143,7 +160,7 @@ public fun register_user(
     } else {
         // assert!(option::is_none(payment), 410); // Payment not allowed for non-manufacturers
         assert!(len > 0, 404);
-        assert!(total_weight >= MIN_ENDORSEMENT_WEIGHT, 405);
+        assert!(total_weight >= MIN_VOTE_WEIGHT, 405);
         transfer::public_transfer(option::extract(payment), participant); // Treasury address
     };
 
@@ -182,16 +199,121 @@ public fun register_user(
         issued_at: tx::epoch_timestamp_ms(ctx),
         role,
         trust_score: 1,
+        approved: true, // Auto-approve manufacturers; others need voting
+        total_vote_weight: 0,
     };
-    add_user_to_registry(registry, participant, user);
+    add_user_to_registry(registry, user);
 
     event::emit(RoleGranted {
-        participant,
+        user: participant,
         role_type: role.role_type,
         granted_by: participant,
         endorsers,
         time: tx::epoch_timestamp_ms(ctx),
     });
+}
+
+public fun vote_for_user(registry: &mut ParticipantRegistry, target: address, ctx: &mut TxContext) {
+    let voter = tx::sender(ctx);
+
+    // All immutable borrows first
+    assert!(table::contains(&registry.users, target), 404); // User not found
+
+    // Voter must be an approved user
+    assert!(table::contains(&registry.users, voter), 416); // Voter not a user
+    let voter_user = table::borrow(&registry.users, voter);
+    assert!(voter_user.approved, 419); // Voter not approved
+
+    let voter_weight = voter_user.trust_score;
+    assert!(voter_weight > 0, 417); // No voting power
+
+    // Get old approved status
+    let old_approved = {
+        let user_ref = table::borrow(&registry.users, target);
+        user_ref.approved
+    };
+
+    // Now take mutable borrow
+    let user_mut = table::borrow_mut(&mut registry.users, target);
+    // assert!(!user_mut.approved, 418); // Already approved
+
+    // Check if already voted
+    assert!(!vector::contains(&user_mut.endorsers, &voter), 415); // Already voted
+
+    vector::push_back(&mut user_mut.endorsers, voter);
+    user_mut.total_vote_weight = user_mut.total_vote_weight + voter_weight;
+
+    event::emit(VoteCast {
+        voter,
+        target,
+        weight: voter_weight,
+        time: tx::epoch_timestamp_ms(ctx),
+    });
+
+    // Auto-approve if threshold reached
+    if (!old_approved && user_mut.total_vote_weight >= MIN_VOTE_WEIGHT) {
+        user_mut.approved = true;
+        event::emit(RoleGranted {
+            user: user_mut.owner,
+            role_type: user_mut.role.role_type,
+            granted_by: voter, // Last voter, or change to list
+            endorsers: user_mut.endorsers,
+            time: tx::epoch_timestamp_ms(ctx),
+        });
+    };
+}
+
+public fun unvote_for_user(
+    registry: &mut ParticipantRegistry,
+    target: address,
+    ctx: &mut TxContext,
+) {
+    let voter = tx::sender(ctx);
+
+    // All immutable borrows first
+    assert!(table::contains(&registry.users, target), 404); // User not found
+
+    // Voter must be an approved user
+    assert!(table::contains(&registry.users, voter), 416); // Voter not a user
+    let voter_user = table::borrow(&registry.users, voter);
+    assert!(voter_user.approved, 419); // Voter not approved
+
+    let voter_weight = voter_user.trust_score;
+    assert!(voter_weight > 0, 417); // No voting power
+
+    // Get old approved status
+    let old_approved = {
+        let user_ref = table::borrow(&registry.users, target);
+        user_ref.approved
+    };
+
+    // Now take mutable borrow
+    let user_mut = table::borrow_mut(&mut registry.users, target);
+    assert!(!user_mut.approved, 418); // Already approved
+
+    // Check if already voted
+    let voted = vector::contains(&user_mut.endorsers, &voter); // Haven't voted yet
+
+    if (voted) {
+        // Remove voter from endorsers
+        let mut i = 0;
+        let len = vector::length(&user_mut.endorsers);
+        while (i < len) {
+            if (*vector::borrow(&user_mut.endorsers, i) == voter) {
+                vector::remove(&mut user_mut.endorsers, i);
+                break
+            };
+            i = i + 1;
+        };
+
+        user_mut.total_vote_weight = user_mut.total_vote_weight - voter_weight;
+    } else {
+        user_mut.total_vote_weight = user_mut.total_vote_weight -1;
+    };
+    if (old_approved && user_mut.total_vote_weight < MIN_VOTE_WEIGHT) {
+        user_mut.approved = false;
+        // Could emit event for revocation due to unvote if desired
+    };
 }
 
 public fun has_role(
@@ -236,89 +358,11 @@ public fun update_trust_score(
     user_mut.trust_score = new_score;
 
     event::emit(TrustScoreUpdated {
-        participant,
+        user: participant,
         new_score,
         updated_by: updater,
         time: tx::epoch_timestamp_ms(ctx),
     });
-}
-
-public fun grant_role(
-    registry: &mut ParticipantRegistry,
-    participant: address,
-    role_type: String,
-    name: String,
-    description: String,
-    permissions: vector<String>,
-    endorsers: vector<address>,
-    ctx: &mut TxContext,
-) {
-    let granter = tx::sender(ctx);
-    assert!(
-        has_specific_permission(registry, granter, string::utf8(b"GRANT_DOWNSTREAM_ROLES"), ctx) ||
-        vector::contains(&endorsers, &granter),
-        403,
-    );
-    assert!(vector::length(&endorsers) > 0, 404);
-
-    let mut total_weight: u64 = 0;
-    let mut i = 0;
-    let len = vector::length(&endorsers);
-    while (i < len) {
-        let endorser = *vector::borrow(&endorsers, i);
-        if (endorser != participant) {
-            let score = get_trust_score(registry, endorser);
-            total_weight = total_weight + score;
-        };
-        i = i + 1;
-    };
-    assert!(total_weight >= MIN_ENDORSEMENT_WEIGHT, 405);
-
-    let role = Role {
-        role_type,
-        name: description,
-        permissions,
-    };
-    let user = User {
-        id: obj::new(ctx),
-        name,
-        endorsers,
-        owner: participant,
-        issued_at: tx::epoch_timestamp_ms(ctx),
-        role,
-        trust_score: 1,
-    };
-    add_user_to_registry(registry, participant, user);
-
-    event::emit(RoleGranted {
-        participant,
-        role_type,
-        granted_by: granter,
-        endorsers,
-        time: tx::epoch_timestamp_ms(ctx),
-    });
-}
-
-fun has_specific_permission(
-    registry: &ParticipantRegistry,
-    participant: address,
-    target_perm: String,
-    _ctx: &TxContext,
-): bool {
-    if (!table::contains(&registry.users, participant)) {
-        return false
-    };
-    let user = table::borrow(&registry.users, participant);
-    let perms = &user.role.permissions;
-    let mut j = 0;
-    let perm_len = vector::length(perms);
-    while (j < perm_len) {
-        if (*vector::borrow(perms, j) == target_perm) {
-            return true
-        };
-        j = j + 1;
-    };
-    false
 }
 
 public fun revoke_role(
@@ -339,8 +383,17 @@ public fun revoke_role(
     // Since single role, remove the entire user (or reset role if multi-role needed)
     let removed_user = table::remove(&mut registry.users, participant);
 
-    let User { id, endorsers: _, issued_at: _, name: _, owner: _, role: _, trust_score: _ } =
-        removed_user;
+    let User {
+        id,
+        endorsers: _,
+        issued_at: _,
+        name: _,
+        owner: _,
+        role: _,
+        trust_score: _,
+        approved: _,
+        total_vote_weight: _,
+    } = removed_user;
 
     obj::delete(id);
 
@@ -356,7 +409,7 @@ public fun revoke_role(
     };
 
     event::emit(RoleRevoked {
-        participant,
+        user: participant,
         role_type,
         revoked_by: revoker,
         time: tx::epoch_timestamp_ms(ctx),
