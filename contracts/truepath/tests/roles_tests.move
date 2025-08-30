@@ -38,8 +38,8 @@ fun test_create_role() {
         vector::push_back(&mut endorsers, USER1_ADDR);
         // Create a coin with sufficient value for registration fee (1 SUI = 1,000,000,000 MIST)
         let payment = coin::mint_for_testing(1000000000, ts::ctx(&mut scenario));
-        // let minted_payment = ts::take_from_address<Coin<SUI>>(&scenario, USER1_ADDR);
-        // transfer::public_transfer(payment, USER1_ADDR);
+
+        let mut payment_option = option::some(payment);
         test_utils::print(b"Payment coin value: 1000000000 MIST (1 SUI)");
 
         roles::register_user(
@@ -48,20 +48,15 @@ fun test_create_role() {
             utf8(b"Manufacturer"),
             utf8(b"Initial manufacturer for bootstrapping"),
             endorsers,
-            &mut option::some(payment),
+            &mut payment_option,
             ts::ctx(&mut scenario),
         );
 
-        //    roles::register_user(
-        //     &mut registry,
-        //     b"MANUFACTURER".to_string(),
-        //     utf8(b"Manufacturer"),
-        //     utf8(b"Initial manufacturer for bootstrapping"),
-        //     endorsers,
-        //     payment,
-        //     ts::ctx(&mut scenario),
-        // );
-
+        if (option::is_some(&payment_option)) {
+            let leftover = option::extract(&mut payment_option);
+            coin::destroy_zero(leftover);
+        };
+        option::destroy_none(payment_option);
         ts::return_shared(registry);
     };
     ts::next_tx(&mut scenario, USER1_ADDR);
@@ -120,10 +115,11 @@ fun test_vote_or_grant_role() {
         let users = roles::get_all_participants(&registry);
         assert!(vector::length(users) == 1, EWrongParticipantCount);
         let user1 = vector::borrow(users, 0);
-       
-        ts::return_shared(registry);
-    };
 
+        ts::return_shared(registry);
+    // };
+// option::destroy_none(payment_option);
+    ts::next_tx(&mut scenario, USER2_ADDR);
 
     ts::end(scenario);
 }
