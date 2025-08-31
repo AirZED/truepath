@@ -289,7 +289,6 @@ public fun unvote_for_user(
 
     // Now take mutable borrow
     let user_mut = table::borrow_mut(&mut registry.users, target);
-    assert!(!user_mut.approved, 418); // Already approved
 
     // Check if already voted
     let voted = vector::contains(&user_mut.endorsers, &voter); // Haven't voted yet
@@ -422,4 +421,28 @@ public fun get_all_participants(registry: &ParticipantRegistry): &vector<address
 
 public fun get_participant_count(registry: &ParticipantRegistry): u64 {
     vector::length(&registry.participants)
+}
+
+public fun get_registry(registry: &ParticipantRegistry): &Table<address, User> {
+    &registry.users
+}
+
+public fun is_user_approved(user: &User): bool {
+    user.approved
+}
+
+public fun get_user_role(user: &User): &Role {
+    &user.role
+}
+
+public fun get_user_endorsers(user: &User): &vector<address> {
+    &user.endorsers
+}
+
+public fun get_user_trust_score(user: &User): u64 {
+    user.trust_score
+}
+
+public fun get_user_total_vote_weight(user: &User): u64 {
+    user.total_vote_weight
 }
