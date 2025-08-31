@@ -18,7 +18,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 const Index = () => {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [highlightedStep, setHighlightedStep] = useState<number | null>(null);
-  const { userRoles, registerManufacturer, grantRole } = useUserRoles();
+  const { userRoles, registerRole, unVoteUser, voteforUser } = useUserRoles();
 
   const handleStepInteraction = (stepId: number) => {
     setHighlightedStep(highlightedStep === stepId ? null : stepId);
@@ -63,8 +63,9 @@ const Index = () => {
                 {activeSection === "roles" && (
                   <RoleManager
                     userRoles={userRoles}
-                    onRegisterManufacturer={registerManufacturer}
-                    onGrantRole={grantRole}
+                    onRegisterRole={registerRole}
+                    onUnvoteForUser={unVoteUser}
+                    onVoteForUser={voteforUser}
                   />
                 )}
               </div>

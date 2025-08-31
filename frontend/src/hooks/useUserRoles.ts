@@ -1,6 +1,19 @@
 import { useState, useEffect } from "react";
-import { useCurrentAccount } from "@mysten/dapp-kit";
 import { useQuery } from "@tanstack/react-query";
+
+import { Transaction } from "@mysten/sui/transactions";
+
+import {
+    useSuiClient,
+    useSignAndExecuteTransaction,
+    useCurrentAccount,
+    useCurrentWallet,
+} from "@mysten/dapp-kit";
+import { PACKAGE_ID, REGISTRY_ID, ROLE_MODULE_NAME } from "../lib/constants";
+
+
+
+
 
 // Mock data for now - this would be replaced with actual smart contract calls
 const MOCK_ROLES: Record<string, string[]> = {
@@ -11,6 +24,7 @@ const MOCK_ROLES: Record<string, string[]> = {
 };
 
 export const useUserRoles = () => {
+    const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
     const currentAccount = useCurrentAccount();
     const [userRoles, setUserRoles] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -41,22 +55,25 @@ export const useUserRoles = () => {
         }
     }, [roles]);
 
-    const registerManufacturer = async (name: string, description: string) => {
+    const registerRole = async (name: string, description: string) => {
         if (!currentAccount?.address) return;
 
         setIsLoading(true);
         try {
             // TODO: Replace with actual smart contract call
-            // const txb = new TransactionBlock();
-            // txb.moveCall({
-            //   target: `${PACKAGE_ID}::roles::register_manufacturer`,
-            //   arguments: [
-            //     txb.object(PARTICIPANT_REGISTRY_ID),
-            //     txb.pure(name),
-            //     txb.pure(description),
-            //   ],
-            // });
-            // await signAndExecuteTransactionBlock({ transactionBlock: txb });
+            const tx = new Transaction();
+            tx.moveCall({
+                target: `${PACKAGE_ID}::${ROLE_MODULE_NAME}::register_role`,
+                arguments: [
+                    tx.object(REGISTRY_ID),
+                    tx.pure.string(name),
+                    tx.pure.string(description),
+                ],
+            });
+
+            const result = await signAndExecute({
+                transaction: tx,
+            });
 
             // Mock implementation
             console.log(`Registering manufacturer: ${name} - ${description}`);
@@ -72,21 +89,13 @@ export const useUserRoles = () => {
         }
     };
 
-    const grantRole = async (participant: string, roleType: string, name: string, description: string) => {
-        if (!currentAccount?.address) return;
+    const voteforUser = async (user: string) => {
 
-        setIsLoading(true);
-        try {
-            // TODO: Replace with actual smart contract call
-            console.log(`Granting role ${roleType} to ${participant}`);
+    }
 
-        } catch (error) {
-            console.error("Error granting role:", error);
-            throw error;
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const unVoteUser = async (user: string) => {
+
+    }
 
     const hasRole = (role: string): boolean => {
         return userRoles.includes(role);
@@ -101,8 +110,8 @@ export const useUserRoles = () => {
     return {
         userRoles,
         isLoading: isLoading || isRolesLoading,
-        registerManufacturer,
-        grantRole,
+        registerRole,
+        voteforUser, unVoteUser,
         hasRole,
         isManufacturer,
         isAdmin,
