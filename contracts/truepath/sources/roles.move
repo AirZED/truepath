@@ -111,6 +111,17 @@ public fun init_for_test(ctx: &mut TxContext) {
     transfer::share_object(registry);
 }
 
+fun init(ctx: &mut TxContext) {
+    // let deployer = tx::sender(ctx);
+    let registry = ParticipantRegistry {
+        id: obj::new(ctx),
+        participants: vector::empty(),
+        users: table::new(ctx),
+    };
+
+    transfer::share_object(registry);
+}
+
 fun add_user_to_registry(registry: &mut ParticipantRegistry, user: User) {
     let owner_addr = user.owner;
     table::add(&mut registry.users, owner_addr, user);
@@ -132,37 +143,18 @@ public fun register_user(
     role_type: String,
     name: String,
     description: String, // Note: Description not in Role, but passed; perhaps ignore or add to User/Role if needed
-    endorsers: vector<address>,
-    payment: &mut option::Option<Coin<SUI>>,
+    payment: Coin<SUI>,
     ctx: &mut TxContext,
 ) {
     let participant = tx::sender(ctx);
-
-    let mut total_weight: u64 = 0;
-    let mut i = 0;
-    let len = vector::length(&endorsers);
-    while (i < len) {
-        let endorser = *vector::borrow(&endorsers, i);
-        if (endorser != participant) {
-            let score = get_trust_score(registry, endorser);
-            total_weight = total_weight + score;
-        };
-        i = i + 1;
-    };
 
     let is_manufacturer = (role_type == string::utf8(b"MANUFACTURER"));
 
     debug::print(&is_manufacturer);
     if (is_manufacturer) {
-        let coin = option::extract(payment);
-        assert!(coin::value(&coin) >= REGISTRATION_FEE, 408);
-        transfer::public_transfer(coin, @0x4); // Treasury address
-    } else {
-        // assert!(option::is_none(payment), 410); // Payment not allowed for non-manufacturers
-        assert!(len > 0, 404);
-        assert!(total_weight >= MIN_VOTE_WEIGHT, 405);
-        transfer::public_transfer(option::extract(payment), participant); // Treasury address
-    };
+        assert!(coin::value(&payment) >= REGISTRATION_FEE, 408);
+        transfer::public_transfer(payment, @0x4); // Treasury address
+    } else { transfer::public_transfer(payment, participant); };
 
     let permissions = if (is_manufacturer) {
         vector[
@@ -194,7 +186,7 @@ public fun register_user(
     let user = User {
         id: obj::new(ctx),
         name,
-        endorsers,
+        endorsers: vector::empty(),
         owner: participant,
         issued_at: tx::epoch_timestamp_ms(ctx),
         role,
@@ -208,7 +200,7 @@ public fun register_user(
         user: participant,
         role_type: role.role_type,
         granted_by: participant,
-        endorsers,
+        endorsers: vector::empty(),
         time: tx::epoch_timestamp_ms(ctx),
     });
 }

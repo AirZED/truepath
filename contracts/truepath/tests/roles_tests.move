@@ -46,8 +46,7 @@ fun test_create_role() {
     ts::next_tx(&mut scenario, USER1_ADDR);
     {
         let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
-        let mut endorsers = vector::empty<address>();
-        vector::push_back(&mut endorsers, USER1_ADDR);
+
         // Create a coin with sufficient value for registration fee (1 SUI = 1,000,000,000 MIST)
         let payment = coin::mint_for_testing(1000000000, ts::ctx(&mut scenario));
 
@@ -59,7 +58,6 @@ fun test_create_role() {
             b"MANUFACTURER".to_string(),
             utf8(b"Manufacturer"),
             utf8(b"Initial manufacturer for bootstrapping"),
-            endorsers,
             &mut payment_option,
             ts::ctx(&mut scenario),
         );
@@ -103,8 +101,7 @@ fun test_vote_and_unvote() {
     ts::next_tx(&mut scenario, USER1_ADDR);
     {
         let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
-        let mut endorsers = vector::empty<address>();
-        vector::push_back(&mut endorsers, USER1_ADDR);
+       
         let payment = coin::mint_for_testing(1000000000, ts::ctx(&mut scenario));
         let mut payment_option = option::some(payment);
 
@@ -113,7 +110,6 @@ fun test_vote_and_unvote() {
             b"MANUFACTURER".to_string(),
             utf8(b"Manufacturer"),
             utf8(b"Initial manufacturer for bootstrapping"),
-            endorsers,
             &mut payment_option,
             ts::ctx(&mut scenario),
         );
@@ -126,20 +122,19 @@ fun test_vote_and_unvote() {
         ts::return_shared(registry);
     };
 
-    // Update USER1 trust score to 10
-    ts::next_tx(&mut scenario, USER1_ADDR);
-    {
-        let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
-        roles::update_trust_score(&mut registry, USER1_ADDR, 10, ts::ctx(&mut scenario));
-        ts::return_shared(registry);
-    };
+    // // Update USER1 trust score to 10
+    // ts::next_tx(&mut scenario, USER1_ADDR);
+    // {
+    //     let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
+    //     roles::update_trust_score(&mut registry, USER1_ADDR, 10, ts::ctx(&mut scenario));
+    //     ts::return_shared(registry);
+    // };
 
     // Register USER2 as SHIPPER with endorser USER1
     ts::next_tx(&mut scenario, USER2_ADDR);
     {
         let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
-        let mut endorsers = vector::empty<address>();
-        vector::push_back(&mut endorsers, USER1_ADDR);
+      
         let payment = coin::mint_for_testing(0, ts::ctx(&mut scenario));
         let mut payment_option = option::some(payment);
 
@@ -148,7 +143,6 @@ fun test_vote_and_unvote() {
             b"SHIPPER".to_string(),
             utf8(b"Shipper"),
             utf8(b"Test shipper"),
-            endorsers,
             &mut payment_option,
             ts::ctx(&mut scenario),
         );
@@ -165,8 +159,7 @@ fun test_vote_and_unvote() {
     ts::next_tx(&mut scenario, ENDORSER1_ADDR);
     {
         let mut registry = ts::take_shared<ParticipantRegistry>(&scenario);
-        let mut endorsers = vector::empty<address>();
-        vector::push_back(&mut endorsers, USER1_ADDR);
+      
         let payment = coin::mint_for_testing(0, ts::ctx(&mut scenario));
         let mut payment_option = option::some(payment);
 
@@ -175,7 +168,6 @@ fun test_vote_and_unvote() {
             b"DISTRIBUTOR".to_string(),
             utf8(b"Distributor"),
             utf8(b"Test distributor"),
-            endorsers,
             &mut payment_option,
             ts::ctx(&mut scenario),
         );
@@ -195,7 +187,7 @@ fun test_vote_and_unvote() {
         let user = table::borrow(roles::get_registry(&registry), USER2_ADDR);
         assert!(is_user_approved(user), EWrongApproved);
         assert!(get_user_total_vote_weight(user)== 0, EWrongVoteWeight);
-        assert!(vector::length(get_user_endorsers(user)) == 1, EWrongEndorserCount);
+        assert!(vector::length(get_user_endorsers(user)) == 0, EWrongEndorserCount);
         let role = roles::has_role(
             &registry,
             USER2_ADDR,
@@ -222,7 +214,7 @@ fun test_vote_and_unvote() {
         assert!(is_user_approved(user), EWrongApproved);
 
         assert!(get_user_total_vote_weight(user) == 1, EWrongVoteWeight);
-        assert!(vector::length(get_user_endorsers(user)) == 2, EWrongEndorserCount);
+        assert!(vector::length(get_user_endorsers(user)) == 1, EWrongEndorserCount);
         ts::return_shared(registry);
     };
 
@@ -239,10 +231,10 @@ fun test_vote_and_unvote() {
     {
         let registry = ts::take_shared<ParticipantRegistry>(&scenario);
         let user = table::borrow(roles::get_registry(&registry), USER2_ADDR);
-        
+
         assert!(!is_user_approved(user), EWrongApproved);
         assert!(get_user_total_vote_weight(user)== 0, EWrongVoteWeight);
-        assert!(vector::length(get_user_endorsers(user)) == 1, EWrongEndorserCount);
+        assert!(vector::length(get_user_endorsers(user)) == 0, EWrongEndorserCount);
         ts::return_shared(registry);
     };
 
