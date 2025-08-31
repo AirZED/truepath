@@ -8,9 +8,24 @@ use std::string;
 use std::vector;
 use sui::event;
 use sui::object::{Self as obj, UID};
+use sui::table;
 use sui::transfer;
 use sui::tx_context::{Self as tx, TxContext};
-// use truepath::roles;
+use truepath::roles::{
+    get_registry,
+    ParticipantRegistry,
+    get_user_in_registry,
+    is_user_in_registry,
+    has_role,
+    User,
+    is_user_in_registry_approved
+};
+
+// Error codes (adding descriptive constants as recommended previously)
+const E_FORBIDDEN: u64 = 403; // Operation not allowed (insufficient permissions)
+const E_NOT_A_USER: u64 = 416; // Caller is not a registered user
+
+const E_VOTER_NOT_APPROVED: u64 = 419; // Voter is not approved to vote
 
 public struct Product has key, store {
     id: UID,
@@ -63,15 +78,20 @@ public struct Rejected has copy, drop, store {
 /// Mint a new product with an already-computed h_0 and a total remaining count.
 /// Security note: DO NOT store the seed on-chain
 public fun mint_product(
+    registry: &ParticipantRegistry,
     sku: string::String,
     batch_id: string::String,
     head_hash: vector<u8>,
     total_steps: u32,
     stage_names: vector<string::String>,
     stage_roles: vector<string::String>,
-    owner: address,
     ctx: &mut TxContext,
-) {
+): Product {
+    let owner = tx::sender(ctx);
+
+    assert!(is_user_in_registry(registry, owner), E_NOT_A_USER);
+    assert!(has_role(registry, owner, string::utf8(b"MANUFACTURER"), ctx), E_FORBIDDEN);
+
     if (vector::length(&stage_names) != 0 && vector::length(&stage_names) != (total_steps as u64)) {
         abort 1
     };
@@ -105,7 +125,7 @@ public fun mint_product(
         time: tx::epoch_timestamp_ms(ctx),
     });
 
-    transfer::transfer(product, owner);
+    product
 }
 
 public fun set_owner(product: &mut Product, new_owner: address, ctx: &mut TxContext) {
@@ -118,12 +138,18 @@ public fun set_owner(product: &mut Product, new_owner: address, ctx: &mut TxCont
 /// - On success: head_hash := preimage, remaining--, stage++.
 /// - Attach context: actor_role and location tag for auditing
 public fun verify_and_advance(
+    registry: &ParticipantRegistry,
     product: &mut Product,
     preimage: vector<u8>,
     actor_role: string::String,
     location_tag: option::Option<string::String>,
     ctx: &mut TxContext,
 ) {
+    let actor = tx::sender(ctx);
+
+    assert!(is_user_in_registry(registry, actor), E_NOT_A_USER);
+    assert!(is_user_in_registry_approved(registry, actor), E_VOTER_NOT_APPROVED);
+
     let now = tx::epoch_timestamp_ms(ctx);
 
     if (product.remaining == 0) {
@@ -131,7 +157,7 @@ public fun verify_and_advance(
         event::emit(Rejected {
             product: obj::uid_to_address(&product.id),
             stage_index: product.stage,
-            actor: tx::sender(ctx),
+            actor,
             actor_role,
             reason: string::utf8(b"COMPLETED"),
             time: now,
@@ -148,7 +174,7 @@ public fun verify_and_advance(
         event::emit(Rejected {
             product: obj::uid_to_address(&product.id),
             stage_index: product.stage,
-            actor: tx::sender(ctx),
+            actor,
             actor_role,
             reason: string::utf8(b"HASH_MISMATCH"),
             time: now,
@@ -181,7 +207,7 @@ public fun verify_and_advance(
         stage_index: stage_before,
         stage_name,
         expected_role,
-        actor: tx::sender(ctx),
+        actor,
         actor_role,
         location_tag,
         ok_role,
@@ -194,6 +220,7 @@ public fun verify_and_advance(
 /// The logical current_owner field is also updated to match the new owner.
 #[allow(lint(custom_state_change))]
 public fun verify_and_advance_and_transfer(
+    registry: &ParticipantRegistry,
     mut product: Product,
     preimage: vector<u8>,
     actor_role: string::String,
@@ -201,7 +228,7 @@ public fun verify_and_advance_and_transfer(
     new_owner: address,
     ctx: &mut TxContext,
 ) {
-    verify_and_advance(&mut product, preimage, actor_role, location_tag, ctx);
+    verify_and_advance(registry, &mut product, preimage, actor_role, location_tag, ctx);
     set_owner(&mut product, new_owner, ctx);
     transfer::transfer(product, new_owner);
 }
