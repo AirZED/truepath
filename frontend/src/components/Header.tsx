@@ -25,7 +25,11 @@ export const Header = () => {
       <nav className="max-w-7xl mx-auto flex items-center justify-between h-full">
         {/* Logo */}
         <div className="flex items-center gap-4 sm:gap-6">
-          <Link to="/" className="flex items-center gap-2" onClick={closeMobileMenu}>
+          <Link
+            to="/"
+            className="flex items-center gap-2"
+            onClick={closeMobileMenu}
+          >
             {/* <img src={logo} alt="Logo" className="h-5" /> */}
             <span className="text-lg font-semibold">TC</span>
           </Link>
@@ -79,13 +83,7 @@ export const Header = () => {
             >
               <Search className="h-5 w-5" />
             </Button>
-            <Link
-              className="flex items-center justify-center gap-1 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"
-              to="/create-event"
-            >
-              <FiPlus className="h-4 w-4" />
-              <span className="hidden lg:inline">Create Product</span>
-            </Link>
+
             <RiNotification3Line className="h-5 w-5 text-muted-foreground hover:text-foreground cursor-pointer" />
           </div>
 

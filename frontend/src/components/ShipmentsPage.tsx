@@ -8,6 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Search, Filter, Eye, Package, MapPin, Clock, Truck } from "lucide-react";
+import { CreateProductModal } from "./CreateProductModal";
+import { AdvanceProductModal } from "./AdvanceProductModal";
+import { useProducts, Product } from "@/hooks/useProducts";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 const shipments = [
   {
@@ -24,7 +28,7 @@ const shipments = [
     weight: "2.5 tons"
   },
   {
-    id: "SC-2024-002", 
+    id: "SC-2024-002",
     product: "Medical Supplies",
     origin: "Mumbai, India",
     destination: "New York, NY",
@@ -76,33 +80,35 @@ export function ShipmentsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedShipment, setSelectedShipment] = useState<string | null>(null);
 
+  const { products, isLoading: isProductsLoading } = useProducts();
+  const { isManufacturer, hasRole } = useUserRoles();
+
   const filteredShipments = shipments.filter(shipment => {
     const matchesSearch = shipment.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         shipment.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         shipment.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         shipment.destination.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      shipment.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      shipment.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      shipment.destination.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesStatus = statusFilter === "all" || shipment.status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-foreground">Shipments</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Shipments</h1>
           <p className="text-muted-foreground">Monitor and manage all your supply chain shipments</p>
         </div>
-        <Button>
-          <Package className="w-4 h-4 mr-2" />
-          New Shipment
-        </Button>
+        {isManufacturer && (
+          <CreateProductModal onProductCreated={() => { }} />
+        )}
       </div>
 
       {/* Filters and Search */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Label htmlFor="search">Search Shipments</Label>
@@ -117,7 +123,7 @@ export function ShipmentsPage() {
                 />
               </div>
             </div>
-            <div className="sm:w-48">
+            <div className="w-full sm:w-48">
               <Label htmlFor="status">Filter by Status</Label>
               <select
                 id="status"
@@ -147,69 +153,71 @@ export function ShipmentsPage() {
             <CardHeader>
               <CardTitle>All Shipments ({filteredShipments.length})</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Shipment ID</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Route</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Est. Delivery</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredShipments.map((shipment) => (
-                    <TableRow key={shipment.id}>
-                      <TableCell className="font-medium">{shipment.id}</TableCell>
-                      <TableCell>{shipment.product}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1 text-sm">
-                          <MapPin className="w-3 h-3" />
-                          <span>{shipment.origin} → {shipment.destination}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusColors[shipment.status]}>
-                          {shipment.status.replace('-', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-20 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-600 h-2 rounded-full" 
-                              style={{ width: `${shipment.progress}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{shipment.progress}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1 text-sm">
-                          <Clock className="w-3 h-3" />
-                          <span>{shipment.estimatedDelivery}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{shipment.value}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedShipment(shipment.id)}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
+            <CardContent className="overflow-x-auto">
+              <div className="min-w-full">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[120px]">Shipment ID</TableHead>
+                      <TableHead className="min-w-[140px]">Product</TableHead>
+                      <TableHead className="min-w-[180px]">Route</TableHead>
+                      <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[120px]">Progress</TableHead>
+                      <TableHead className="min-w-[120px]">Est. Delivery</TableHead>
+                      <TableHead className="min-w-[100px]">Value</TableHead>
+                      <TableHead className="min-w-[80px]">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredShipments.map((shipment) => (
+                      <TableRow key={shipment.id}>
+                        <TableCell className="font-medium">{shipment.id}</TableCell>
+                        <TableCell>{shipment.product}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1 text-sm">
+                            <MapPin className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{shipment.origin} → {shipment.destination}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={statusColors[shipment.status]}>
+                            {shipment.status.replace('-', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-16 sm:w-20 bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full"
+                                style={{ width: `${shipment.progress}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{shipment.progress}%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1 text-sm">
+                            <Clock className="w-3 h-3 flex-shrink-0" />
+                            <span>{shipment.estimatedDelivery}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{shipment.value}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedShipment(shipment.id)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="cards">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredShipments.map((shipment) => (
               <Card key={shipment.id} className="cursor-pointer hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
@@ -228,13 +236,13 @@ export function ShipmentsPage() {
                       <span className="font-medium">{shipment.progress}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all" 
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
                         style={{ width: `${shipment.progress}%` }}
                       ></div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <div className="flex items-center space-x-1 text-sm">
                       <MapPin className="w-3 h-3 text-muted-foreground" />
@@ -242,7 +250,7 @@ export function ShipmentsPage() {
                     </div>
                     <p className="text-sm font-medium">{shipment.origin} → {shipment.destination}</p>
                   </div>
-                  
+
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center space-x-1">
                       <Clock className="w-3 h-3 text-muted-foreground" />
@@ -250,7 +258,7 @@ export function ShipmentsPage() {
                     </div>
                     <span className="font-medium">{shipment.estimatedDelivery}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center space-x-1">
                       <Truck className="w-3 h-3 text-muted-foreground" />
@@ -258,10 +266,10 @@ export function ShipmentsPage() {
                     </div>
                     <span className="font-medium text-primary">{shipment.value}</span>
                   </div>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full mt-4"
                     onClick={() => setSelectedShipment(shipment.id)}
                   >

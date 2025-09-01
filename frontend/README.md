@@ -1,73 +1,93 @@
-# Welcome to your Lovable project
+# TruePATH Frontend
 
-## Project info
+A responsive React frontend for the TruePATH blockchain supply chain management system.
 
-**URL**: https://lovable.dev/projects/c7377b1a-e166-47e6-aac2-43faaf10966f
+## Features
 
-## How can I edit this code?
+### Responsive Design
+- **Mobile-first approach** with responsive breakpoints
+- **Collapsible sidebar** with mobile trigger for small screens
+- **Responsive grid layouts** that adapt to different screen sizes
+- **Touch-friendly interfaces** optimized for mobile devices
 
-There are several ways of editing your application.
+### Product Management
+- **Manufacturer Role**: Create new products with custom supply chain stages
+- **Multi-Role Support**: SHIPPER, DISTRIBUTOR, RETAILER, CUSTOMER roles
+- **Stage Advancement**: Verify and advance products through supply chain stages
+- **Ownership Transfer**: Transfer product ownership during stage transitions
 
-**Use Lovable**
+### Smart Contract Integration
+- **Sui Blockchain**: Built on Sui Move smart contracts
+- **Role-Based Access Control**: Secure permission system
+- **Hash Chain Verification**: Cryptographic verification of supply chain progress
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c7377b1a-e166-47e6-aac2-43faaf10966f) and start prompting.
+## Responsive Breakpoints
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Mobile**: `sm:` (640px+) - Single column layouts, compact spacing
+- **Tablet**: `md:` (768px+) - Two column layouts, medium spacing  
+- **Desktop**: `lg:` (1024px+) - Full sidebar, three column layouts
+- **Large Desktop**: `xl:` (1280px+) - Optimized for large screens
 
-**Use your preferred IDE**
+## Components
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### CreateProductModal
+- **Manufacturers only** can create products
+- **Configurable stages** with custom names and roles
+- **Hash input** for initial verification value
+- **Responsive form** with mobile-optimized inputs
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### AdvanceProductModal  
+- **Role-based access** for stage advancement
+- **Preimage verification** for hash chain progression
+- **Optional ownership transfer** during advancement
+- **Location tagging** for audit trails
 
-Follow these steps:
+### ShipmentsPage
+- **Table and card views** with responsive layouts
+- **Search and filtering** with mobile-friendly controls
+- **Progress tracking** with visual indicators
+- **Action buttons** sized for touch interfaces
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Usage
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### For Manufacturers
+1. Connect wallet with manufacturer role
+2. Click "Create Product" button
+3. Fill in product details and supply chain stages
+4. Submit transaction to create product on blockchain
 
-# Step 3: Install the necessary dependencies.
-npm i
+### For Other Roles
+1. Connect wallet with appropriate role (SHIPPER, DISTRIBUTOR, etc.)
+2. View products in Shipments page
+3. Click "Advance Stage" on products you can process
+4. Provide preimage and optional new owner
+5. Submit transaction to advance product stage
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+## Technical Details
+
+- **React 18** with TypeScript
+- **Tailwind CSS** for responsive styling
+- **Sui DApp Kit** for blockchain integration
+- **React Query** for data management
+- **Lucide React** for consistent icons
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
+
+# Build for production
+npm run build
 ```
 
-**Edit a file directly in GitHub**
+## Smart Contract Integration
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/c7377b1a-e166-47e6-aac2-43faaf10966f) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+The frontend integrates with the TruePATH Move smart contracts:
+- `truepath::truepath` - Product management and verification
+- `truepath::roles` - Role-based access control
+- Participant registry for user management
+- Hash chain verification for supply chain integrity

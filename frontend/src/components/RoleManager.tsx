@@ -22,8 +22,6 @@ import {
 } from "lucide-react";
 
 // Smart contract constants
-const MODULE_ADDRESS = "0xa7d82cfdc97b5ea1efd0e3f43bd6ff307c4272f9284264d952f7c1f42a2f7f8b"; // Replace with your deployed module address
-const REGISTRATION_FEE = 1000000000; // 1 SUI in MIST
 const MIN_VOTE_WEIGHT = 5;
 
 
@@ -110,11 +108,13 @@ export const RoleManager = ({
 
     const selectedRoleInfo = ROLE_TYPES.find(role => role.type === selectedRole);
 
+
     const handleRegisterRole = async () => {
         if (!selectedRole || !roleName.trim() || !roleDescription.trim()) {
             setError("Please fill in all fields");
             return;
         }
+
 
         setIsLoading(true);
         setError("");

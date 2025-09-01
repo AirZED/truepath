@@ -1,7 +1,8 @@
-export const PACKAGE_ID = "0xa7d82cfdc97b5ea1efd0e3f43bd6ff307c4272f9284264d952f7c1f42a2f7f8b"; // Replace with your deployed module address
+export const PACKAGE_ID = "0x19a069e07d9b8d6b1743d5d181137ca7aaa15ce32eebf498b887eb2dfd94a4a2";
+export const UPGRADE_PACKAGE_ID = "0xa9022389eecb66b62359177a09a903c38dafbe0d1e860c537c0838a5858bdca0";
 export const REGISTRATION_FEE = 1000000000; // 1 SUI in MIST
 export const MIN_VOTE_WEIGHT = 5;
 
 export const ROLE_MODULE_NAME = "roles";
 export const TRUEPATH_MODULE_NAME = "truepath"
-export const REGISTRY_ID = "0x5..."
+export const PARTICIPANT_REGISTRY_ID = "0x5decbc96a652784424a1d61ab14541dd983f3758efd97d0f72f88e8d99731179"

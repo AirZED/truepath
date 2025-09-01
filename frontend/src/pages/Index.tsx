@@ -7,9 +7,6 @@ import { ProductJourney } from "@/components/ProductJourney";
 import { EscrowSection } from "@/components/EscrowSection";
 import { SupplyChainMap } from "@/components/SupplyChainMap";
 import { ShipmentsPage } from "@/components/ShipmentsPage";
-import EscrowsPage from "@/components/EscrowsPage";
-import DisputesPage from "@/components/DisputesPage";
-import SettingsPage from "@/components/SettingsPage";
 import { Header } from "@/components/Header";
 import { WalletGate } from "@/components/WalletGate";
 import { RoleManager } from "@/components/RoleManager";
@@ -25,7 +22,7 @@ const Index = () => {
   };
 
   return (
-    <div className="pt-20">
+    <div className="pt-16 sm:pt-20">
       <Header />
       <WalletGate>
         <SidebarProvider>
@@ -37,18 +34,18 @@ const Index = () => {
             <main className="flex-1 flex flex-col">
               {/* <DashboardHeader /> */}
 
-              <div className="flex-1 p-6 space-y-6">
+              <div className="flex-1 p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
                 {activeSection === "dashboard" && (
                   <>
                     <DashboardOverview />
-                    <div className="grid lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                       <ProductJourney
                         highlightedStep={highlightedStep}
                         onStepClick={handleStepInteraction}
                       />
                       <EscrowSection />
                     </div>
-                    <div className="mt-6">
+                    <div className="mt-4 sm:mt-6">
                       <SupplyChainMap
                         highlightedStep={highlightedStep}
                         onStepClick={handleStepInteraction}
@@ -57,9 +54,6 @@ const Index = () => {
                   </>
                 )}
                 {activeSection === "shipments" && <ShipmentsPage />}
-                {activeSection === "escrows" && <EscrowsPage />}
-                {activeSection === "disputes" && <DisputesPage />}
-                {activeSection === "settings" && <SettingsPage />}
                 {activeSection === "roles" && (
                   <RoleManager
                     userRoles={userRoles}
