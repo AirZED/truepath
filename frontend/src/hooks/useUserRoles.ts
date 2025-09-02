@@ -50,11 +50,15 @@ export const useUserRoles = () => {
         queryFn: async () => {
             if (!currentAccount?.address) return [];
 
+            console.log("Fetching roles")
+
             // TODO: Replace with actual smart contract call
-            // const registry = await suiClient.getObject({
-            //   id: PARTICIPANT_REGISTRY_ID,
-            //   options: { showContent: true }
-            // });
+            const registry = await suiClient.getObject({
+                id: PARTICIPANT_REGISTRY_ID,
+                options: { showContent: true }
+            });
+
+            console.log(registry)
             // return await get_participant_roles(registry, currentAccount.address);
 
             // Mock implementation for now
