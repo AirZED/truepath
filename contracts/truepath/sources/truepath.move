@@ -1,4 +1,5 @@
 /// Module: truepath
+/// Manages supply chain product lifecycle with hash-chain verification and role-based access control.
 module truepath::truepath;
 
 use std::debug;
@@ -8,36 +9,37 @@ use std::string;
 use std::vector;
 use sui::event;
 use sui::object::{Self as obj, UID};
-use sui::table;
 use sui::transfer;
 use sui::tx_context::{Self as tx, TxContext};
 use truepath::roles::{
-    get_registry,
     ParticipantRegistry,
-    get_user_in_registry,
-    is_user_in_registry,
-    has_role,
     User,
-    is_user_in_registry_approved
+    has_role,
+    is_user_in_registry,
+    is_user_approved,
+    verify_user
 };
 
-// Error codes (adding descriptive constants as recommended previously)
+// Error codes
 const E_FORBIDDEN: u64 = 403; // Operation not allowed (insufficient permissions)
 const E_NOT_A_USER: u64 = 416; // Caller is not a registered user
-
-const E_VOTER_NOT_APPROVED: u64 = 419; // Voter is not approved to vote
+const E_VOTER_NOT_APPROVED: u64 = 419; // User is not approved
+const E_INVALID_STAGE_CONFIG: u64 = 1; // Stage names length mismatch
+const E_INVALID_ROLE_CONFIG: u64 = 2; // Stage roles length mismatch
+const E_PRODUCT_COMPLETED: u64 = 10; // Product has no remaining steps
+const E_HASH_MISMATCH: u64 = 11; // Preimage does not match head_hash
 
 public struct Product has key, store {
     id: UID,
     // Business identifiers
     sku: string::String,
     batch_id: string::String,
-    // evolving one-time code (hash-chain head)
-    head_hash: vector<u8>, //starts at h_0
-    remaining: u32, //how many preimages left until completion
-    stage: u32, //current stage index (0-based)
-    stage_names: vector<string::String>, //["MANUFACTURED","SHIPPED","RECEIVED","RETAIL","SOLD"],
-    stage_roles: vector<string::String>, // e.g., ["MFR","3PL","DIST","RETAIL","CUSTOMER"]
+    // Evolving one-time code (hash-chain head)
+    head_hash: vector<u8>, // Starts at h_0
+    remaining: u32, // How many preimages left until completion
+    stage: u32, // Current stage index (0-based)
+    stage_names: vector<string::String>, // e.g., ["MANUFACTURED","SHIPPED","RECEIVED","RETAIL","SOLD"]
+    stage_roles: vector<string::String>, // e.g., ["MANUFACTURER","SHIPPER","DISTRIBUTOR","RETAILER","CUSTOMER"]
     current_owner: address,
 }
 
@@ -52,7 +54,7 @@ public struct Minted has copy, drop, store {
     time: u64,
 }
 
-/// Emitted on each successful step advance
+/// Emitted on each successful stage advance
 public struct Advanced has copy, drop, store {
     product: address,
     stage_index: u32,
@@ -71,7 +73,7 @@ public struct Rejected has copy, drop, store {
     stage_index: u32,
     actor: address,
     actor_role: string::String,
-    reason: string::String, //"HASH_MISMATCH" | "COMPLETED"
+    reason: string::String, // "HASH_MISMATCH" | "COMPLETED"
     time: u64,
 }
 
@@ -79,6 +81,7 @@ public struct Rejected has copy, drop, store {
 /// Security note: DO NOT store the seed on-chain
 public fun mint_product(
     registry: &ParticipantRegistry,
+    user: &User,
     sku: string::String,
     batch_id: string::String,
     head_hash: vector<u8>,
@@ -88,16 +91,16 @@ public fun mint_product(
     ctx: &mut TxContext,
 ): Product {
     let owner = tx::sender(ctx);
-
+    assert!(user.owner == owner, E_FORBIDDEN);
     assert!(is_user_in_registry(registry, owner), E_NOT_A_USER);
-    assert!(has_role(registry, owner, string::utf8(b"MANUFACTURER"), ctx), E_FORBIDDEN);
+    assert!(has_role(registry, owner, string::utf8(b"MANUFACTURER"), user, ctx), E_FORBIDDEN);
 
     if (vector::length(&stage_names) != 0 && vector::length(&stage_names) != (total_steps as u64)) {
-        abort 1
+        abort E_INVALID_STAGE_CONFIG
     };
 
     if (vector::length(&stage_roles) != 0 && vector::length(&stage_roles) != (total_steps as u64)) {
-        abort 2
+        abort E_INVALID_ROLE_CONFIG
     };
 
     let product = Product {
@@ -112,7 +115,7 @@ public fun mint_product(
         current_owner: owner,
     };
 
-    //printing to see if the product created correctly
+    // Debug print to verify product creation
     debug::print(&product);
 
     event::emit(Minted {
@@ -129,7 +132,7 @@ public fun mint_product(
 }
 
 public fun set_owner(product: &mut Product, new_owner: address, ctx: &mut TxContext) {
-    assert!(product.current_owner == tx::sender(ctx), 403);
+    assert!(product.current_owner == tx::sender(ctx), E_FORBIDDEN);
     product.current_owner = new_owner;
 }
 
@@ -139,6 +142,7 @@ public fun set_owner(product: &mut Product, new_owner: address, ctx: &mut TxCont
 /// - Attach context: actor_role and location tag for auditing
 public fun verify_and_advance(
     registry: &ParticipantRegistry,
+    user: &User,
     product: &mut Product,
     preimage: vector<u8>,
     actor_role: string::String,
@@ -146,14 +150,13 @@ public fun verify_and_advance(
     ctx: &mut TxContext,
 ) {
     let actor = tx::sender(ctx);
-
+    assert!(verify_user(user, actor), E_FORBIDDEN);
     assert!(is_user_in_registry(registry, actor), E_NOT_A_USER);
-    assert!(is_user_in_registry_approved(registry, actor), E_VOTER_NOT_APPROVED);
+    assert!(is_user_approved(user), E_VOTER_NOT_APPROVED);
 
     let now = tx::epoch_timestamp_ms(ctx);
 
     if (product.remaining == 0) {
-        // Already completed?
         event::emit(Rejected {
             product: obj::uid_to_address(&product.id),
             stage_index: product.stage,
@@ -162,7 +165,7 @@ public fun verify_and_advance(
             reason: string::utf8(b"COMPLETED"),
             time: now,
         });
-        abort 10
+        abort E_PRODUCT_COMPLETED
     };
 
     let computed = hash::sha3_256(preimage);
@@ -170,7 +173,6 @@ public fun verify_and_advance(
     debug::print(&computed);
     debug::print(&product.head_hash);
     if (!vector_eq(&computed, &product.head_hash)) {
-        // wrong/old code -> out-of-sync attempt
         event::emit(Rejected {
             product: obj::uid_to_address(&product.id),
             stage_index: product.stage,
@@ -179,7 +181,7 @@ public fun verify_and_advance(
             reason: string::utf8(b"HASH_MISMATCH"),
             time: now,
         });
-        abort 11
+        abort E_HASH_MISMATCH
     };
 
     // Resolve expected role/name for this stage (if configured)
@@ -195,7 +197,7 @@ public fun verify_and_advance(
     let stage_before = product.stage;
     product.stage = product.stage + 1;
 
-    // Role check: soft validation (We don't abort, we just flag in the event)
+    // Role check: soft validation (we don't abort, we just flag in the event)
     let ok_role = if (string::length(&expected_role) == 0) {
         true
     } else {
@@ -221,6 +223,7 @@ public fun verify_and_advance(
 #[allow(lint(custom_state_change))]
 public fun verify_and_advance_and_transfer(
     registry: &ParticipantRegistry,
+    user: &User,
     mut product: Product,
     preimage: vector<u8>,
     actor_role: string::String,
@@ -228,7 +231,7 @@ public fun verify_and_advance_and_transfer(
     new_owner: address,
     ctx: &mut TxContext,
 ) {
-    verify_and_advance(registry, &mut product, preimage, actor_role, location_tag, ctx);
+    verify_and_advance(registry, user, &mut product, preimage, actor_role, location_tag, ctx);
     set_owner(&mut product, new_owner, ctx);
     transfer::transfer(product, new_owner);
 }

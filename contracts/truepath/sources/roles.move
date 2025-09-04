@@ -53,7 +53,7 @@ public struct User has key, store {
 public struct ParticipantRegistry has key {
     id: UID,
     participants: vector<address>,
-    users: Table<address, User>,
+    users: Table<address, address>,
 }
 
 public struct RoleGranted has copy, drop, store {
@@ -112,19 +112,11 @@ fun init(ctx: &mut TxContext) {
     transfer::share_object(registry);
 }
 
-fun add_user_to_registry(registry: &mut ParticipantRegistry, user: User) {
+fun add_user_to_registry(registry: &mut ParticipantRegistry, user: &User) {
     let owner_addr = user.owner;
-    table::add(&mut registry.users, owner_addr, user);
+    let user_id = obj::uid_to_address(&user.id);
+    table::add(&mut registry.users, owner_addr, user_id);
     vector::push_back(&mut registry.participants, owner_addr);
-}
-
-public fun get_trust_score(registry: &ParticipantRegistry, userAddress: address): u64 {
-    if (table::contains(&registry.users, userAddress)) {
-        let user = table::borrow(&registry.users, userAddress);
-        user.trust_score
-    } else {
-        0
-    }
 }
 
 public fun register_manufacturer(
@@ -171,7 +163,9 @@ public fun register_manufacturer(
         approved: true,
         total_vote_weight: 0,
     };
-    add_user_to_registry(registry, user);
+    add_user_to_registry(registry, &user);
+
+    transfer::transfer(user, participant);
 
     event::emit(RoleGranted {
         user: participant,
@@ -224,7 +218,10 @@ public fun register_participants(
         approved: false,
         total_vote_weight: 0,
     };
-    add_user_to_registry(registry, user);
+
+    add_user_to_registry(registry, &user);
+
+    transfer::transfer(user, participant);
 
     event::emit(RoleGranted {
         user: participant,
@@ -235,44 +232,43 @@ public fun register_participants(
     });
 }
 
-public fun vote_for_user(registry: &mut ParticipantRegistry, target: address, ctx: &mut TxContext) {
+public fun vote_for_user(
+    registry: &mut ParticipantRegistry,
+    user_obj: &mut User,
+    voter_user: &User,
+    ctx: &mut TxContext,
+) {
     let voter = tx::sender(ctx);
-
-    assert!(table::contains(&registry.users, target), E_USER_NOT_FOUND);
-
     assert!(table::contains(&registry.users, voter), E_NOT_A_USER);
-    let voter_user = table::borrow(&registry.users, voter);
+    assert!(table::contains(&registry.users, user_obj.owner), E_USER_NOT_FOUND);
+
+    // Fetch voter's User object
+    let voter_user_id = *table::borrow(&registry.users, voter);
     assert!(voter_user.approved, E_VOTER_NOT_APPROVED);
+    assert!(voter_user.trust_score > 0, E_NO_VOTING_POWER);
+
+    assert!(!vector::contains(&user_obj.endorsers, &voter), E_ALREADY_VOTED);
 
     let voter_weight = voter_user.trust_score;
-    assert!(voter_weight > 0, E_NO_VOTING_POWER);
+    let old_approved = user_obj.approved;
 
-    let old_approved = {
-        let user_ref = table::borrow(&registry.users, target);
-        user_ref.approved
-    };
-
-    let user_mut = table::borrow_mut(&mut registry.users, target);
-
-    assert!(!vector::contains(&user_mut.endorsers, &voter), E_ALREADY_VOTED);
-
-    vector::push_back(&mut user_mut.endorsers, voter);
-    user_mut.total_vote_weight = user_mut.total_vote_weight + voter_weight;
+    vector::push_back(&mut user_obj.endorsers, voter);
+    user_obj.total_vote_weight = user_obj.total_vote_weight + voter_weight;
 
     event::emit(VoteCast {
         voter,
-        target,
+        target: user_obj.owner,
         weight: voter_weight,
         time: tx::epoch_timestamp_ms(ctx),
     });
 
-    if (!old_approved && user_mut.total_vote_weight >= MIN_VOTE_WEIGHT) {
-        user_mut.approved = true;
+    if (!old_approved && user_obj.total_vote_weight >= MIN_VOTE_WEIGHT) {
+        user_obj.approved = true;
         event::emit(RoleGranted {
-            user: user_mut.owner,
-            role_type: user_mut.role.role_type,
+            user: user_obj.owner,
+            role_type: user_obj.role.role_type,
             granted_by: voter,
-            endorsers: user_mut.endorsers,
+            endorsers: user_obj.endorsers,
             time: tx::epoch_timestamp_ms(ctx),
         });
     };
@@ -280,143 +276,96 @@ public fun vote_for_user(registry: &mut ParticipantRegistry, target: address, ct
 
 public fun unvote_for_user(
     registry: &mut ParticipantRegistry,
-    target: address,
+    user_obj: &mut User,
+    voter_user: &User,
     ctx: &mut TxContext,
 ) {
     let voter = tx::sender(ctx);
-
-    assert!(table::contains(&registry.users, target), E_USER_NOT_FOUND);
-
     assert!(table::contains(&registry.users, voter), E_NOT_A_USER);
-    let voter_user = table::borrow(&registry.users, voter);
+    assert!(table::contains(&registry.users, user_obj.owner), E_USER_NOT_FOUND);
+
+    // Fetch voter's User object
+    let voter_user_id = *table::borrow(&registry.users, voter);
     assert!(voter_user.approved, E_VOTER_NOT_APPROVED);
+    assert!(voter_user.trust_score > 0, E_NO_VOTING_POWER);
 
     let voter_weight = voter_user.trust_score;
-    assert!(voter_weight > 0, E_NO_VOTING_POWER);
+    let old_approved = user_obj.approved;
 
-    let old_approved = {
-        let user_ref = table::borrow(&registry.users, target);
-        user_ref.approved
-    };
-
-    let user_mut = table::borrow_mut(&mut registry.users, target);
-
-    let voted = vector::contains(&user_mut.endorsers, &voter);
+    let voted = vector::contains(&user_obj.endorsers, &voter);
 
     if (voted) {
         let mut i = 0;
-        let len = vector::length(&user_mut.endorsers);
+        let len = vector::length(&user_obj.endorsers);
         while (i < len) {
-            if (*vector::borrow(&user_mut.endorsers, i) == voter) {
-                vector::remove(&mut user_mut.endorsers, i);
+            if (*vector::borrow(&user_obj.endorsers, i) == voter) {
+                vector::remove(&mut user_obj.endorsers, i);
                 break
             };
             i = i + 1;
         };
-
-        user_mut.total_vote_weight = user_mut.total_vote_weight - voter_weight;
+        user_obj.total_vote_weight = user_obj.total_vote_weight - voter_weight;
     } else {
-        user_mut.total_vote_weight = user_mut.total_vote_weight -1;
+        user_obj.total_vote_weight = user_obj.total_vote_weight - 1;
     };
-    if (old_approved && user_mut.total_vote_weight < MIN_VOTE_WEIGHT) {
-        user_mut.approved = false;
+
+    if (old_approved && user_obj.total_vote_weight < MIN_VOTE_WEIGHT) {
+        user_obj.approved = false;
     };
+
+    event::emit(VoteRemoved {
+        voter,
+        target: user_obj.owner,
+        weight: voter_weight,
+        time: tx::epoch_timestamp_ms(ctx),
+    });
 }
 
 public fun has_role(
     registry: &ParticipantRegistry,
     participant: address,
     role_type: String,
-    _ctx: &TxContext,
+    user: &User,
+    ctx: &TxContext,
 ): bool {
     if (!table::contains(&registry.users, participant)) {
         return false
     };
-    let user = table::borrow(&registry.users, participant);
-    (user.role.role_type == role_type)
+    let user_id = *table::borrow(&registry.users, participant);
+    user.role.role_type == role_type
 }
 
 public fun get_participant_roles(
     registry: &ParticipantRegistry,
     participant: address,
-    _ctx: &TxContext,
+    user: User,
+    ctx: &TxContext,
+
+
 ): vector<String> {
     if (!table::contains(&registry.users, participant)) {
         return vector::empty<String>()
     };
-    let user = table::borrow(&registry.users, participant);
+    let user_id = *table::borrow(&registry.users, participant);
     vector::singleton(user.role.role_type)
 }
 
 public fun update_trust_score(
     registry: &mut ParticipantRegistry,
-    participant: address,
+    user_obj: &mut User,
     new_score: u64,
     ctx: &mut TxContext,
 ) {
     let updater = tx::sender(ctx);
-    assert!(table::contains(&registry.users, participant), E_USER_NOT_FOUND);
+    assert!(table::contains(&registry.users, user_obj.owner), E_USER_NOT_FOUND);
+    assert!(vector::contains(&user_obj.endorsers, &updater), E_FORBIDDEN);
 
-    let user = table::borrow(&registry.users, participant);
-    let has_permission = vector::contains(&user.endorsers, &updater);
-    assert!(has_permission, E_FORBIDDEN);
-
-    let user_mut = table::borrow_mut(&mut registry.users, participant);
-    user_mut.trust_score = new_score;
+    user_obj.trust_score = new_score;
 
     event::emit(TrustScoreUpdated {
-        user: participant,
+        user: user_obj.owner,
         new_score,
         updated_by: updater,
-        time: tx::epoch_timestamp_ms(ctx),
-    });
-}
-
-public fun revoke_role(
-    registry: &mut ParticipantRegistry,
-    participant: address,
-    role_type: String,
-    ctx: &mut TxContext,
-) {
-    let revoker = tx::sender(ctx);
-    assert!(table::contains(&registry.users, participant), E_USER_NOT_FOUND);
-
-    let user = table::borrow_mut(&mut registry.users, participant);
-    assert!(user.role.role_type == role_type, E_ROLE_MISMATCH);
-
-    let has_permission = (revoker == participant) || vector::contains(&user.endorsers, &revoker);
-    assert!(has_permission, E_FORBIDDEN);
-
-    let removed_user = table::remove(&mut registry.users, participant);
-
-    let User {
-        id,
-        endorsers: _,
-        issued_at: _,
-        name: _,
-        owner: _,
-        role: _,
-        trust_score: _,
-        approved: _,
-        total_vote_weight: _,
-    } = removed_user;
-
-    obj::delete(id);
-
-    let mut i = 0;
-    let len = vector::length(&registry.participants);
-    while (i < len) {
-        if (*vector::borrow(&registry.participants, i) == participant) {
-            vector::remove(&mut registry.participants, i);
-            break
-        };
-        i = i + 1;
-    };
-
-    event::emit(RoleRevoked {
-        user: participant,
-        role_type,
-        revoked_by: revoker,
         time: tx::epoch_timestamp_ms(ctx),
     });
 }
@@ -427,10 +376,6 @@ public fun get_all_participants(registry: &ParticipantRegistry): &vector<address
 
 public fun get_participant_count(registry: &ParticipantRegistry): u64 {
     vector::length(&registry.participants)
-}
-
-public fun get_registry(registry: &ParticipantRegistry): &Table<address, User> {
-    &registry.users
 }
 
 public fun is_user_approved(user: &User): bool {
@@ -457,11 +402,8 @@ public fun is_user_in_registry(registry: &ParticipantRegistry, target: address):
     table::contains(&registry.users, target)
 }
 
-public fun get_user_in_registry(registry: &ParticipantRegistry, target: address): &User {
-    table::borrow(&registry.users, target)
+public fun get_user_id_in_registry(registry: &ParticipantRegistry, target: address): address {
+    *table::borrow(&registry.users, target)
 }
 
-public fun is_user_in_registry_approved(registry: &ParticipantRegistry, target: address): bool {
-    let user = table::borrow(&registry.users, target);
-    user.approved
-}
+public fun verify_user(user: &User, userAddress: address): bool { user.owner == userAddress }
