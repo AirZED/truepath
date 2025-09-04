@@ -119,6 +119,7 @@ fun add_user_to_registry(registry: &mut ParticipantRegistry, user: &User) {
     vector::push_back(&mut registry.participants, owner_addr);
 }
 
+#[allow(lint(self_transfer))]
 public fun register_manufacturer(
     registry: &mut ParticipantRegistry,
     name: String,
@@ -176,6 +177,7 @@ public fun register_manufacturer(
     });
 }
 
+#[allow(lint(self_transfer))]
 public fun register_participants(
     registry: &mut ParticipantRegistry,
     role_type: String,
@@ -335,20 +337,7 @@ public fun has_role(
     user.role.role_type == role_type
 }
 
-public fun get_participant_roles(
-    registry: &ParticipantRegistry,
-    participant: address,
-    user: User,
-    ctx: &TxContext,
 
-
-): vector<String> {
-    if (!table::contains(&registry.users, participant)) {
-        return vector::empty<String>()
-    };
-    let user_id = *table::borrow(&registry.users, participant);
-    vector::singleton(user.role.role_type)
-}
 
 public fun update_trust_score(
     registry: &mut ParticipantRegistry,

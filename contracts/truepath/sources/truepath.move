@@ -7,6 +7,7 @@ use std::hash;
 use std::option;
 use std::string;
 use std::vector;
+use sui::address;
 use sui::event;
 use sui::object::{Self as obj, UID};
 use sui::transfer;
@@ -52,6 +53,7 @@ public struct Minted has copy, drop, store {
     head_hash: vector<u8>,
     owner: address,
     time: u64,
+    qr_code: string::String, // URL for QR code (e.g., "https://app.truepath.com/product/<product_id>?sku=<sku>&batch=<batch_id>")
 }
 
 /// Emitted on each successful stage advance
@@ -91,7 +93,7 @@ public fun mint_product(
     ctx: &mut TxContext,
 ): Product {
     let owner = tx::sender(ctx);
-    assert!(user.owner == owner, E_FORBIDDEN);
+    assert!(verify_user(user, owner), E_FORBIDDEN);
     assert!(is_user_in_registry(registry, owner), E_NOT_A_USER);
     assert!(has_role(registry, owner, string::utf8(b"MANUFACTURER"), user, ctx), E_FORBIDDEN);
 
@@ -115,6 +117,9 @@ public fun mint_product(
         current_owner: owner,
     };
 
+    let product_id = obj::uid_to_address(&product.id);
+    let qr_code = construct_qr_code(product_id, &sku, &batch_id);
+
     // Debug print to verify product creation
     debug::print(&product);
 
@@ -126,6 +131,7 @@ public fun mint_product(
         head_hash: product.head_hash,
         owner,
         time: tx::epoch_timestamp_ms(ctx),
+        qr_code,
     });
 
     product
@@ -264,6 +270,20 @@ fun resolve_stage(product: &Product): (string::String, string::String) {
     };
 
     (name, role)
+}
+
+fun construct_qr_code(
+    product_id: address,
+    sku: &string::String,
+    batch_id: &string::String,
+): string::String {
+    // Convert address to string
+    let mut qr_code = address::to_string(product_id);
+    string::append_utf8(&mut qr_code, b"?sku=");
+    string::append(&mut qr_code, *sku);
+    string::append_utf8(&mut qr_code, b"&batch=");
+    string::append(&mut qr_code, *batch_id);
+    qr_code
 }
 
 // Getter functions for reading product data
