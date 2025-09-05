@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Package, Plus, X } from "lucide-react";
 import { useProducts, CreateProductData } from "@/hooks/useProducts";
-import { useUserRoles } from "@/hooks/useUserRoles";
+import { useUser } from "@/contexts/UserContext";
 import { toast } from "sonner";
 
 interface CreateProductModalProps {
@@ -25,7 +25,7 @@ export function CreateProductModal({ onProductCreated }: CreateProductModalProps
     });
 
     const { createProduct, isCreating, canCreateProduct } = useProducts();
-    const { isManufacturer } = useUserRoles();
+    const { isManufacturer } = useUser();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

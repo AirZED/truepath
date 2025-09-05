@@ -10,20 +10,20 @@ const stats = [
     icon: Truck,
     changeType: "positive" as const,
   },
-  {
-    title: "Active Escrows",
-    value: "$2.4M",
-    change: "+8%",
-    icon: Lock,
-    changeType: "positive" as const,
-  },
-  {
-    title: "Pending Disputes",
-    value: "3",
-    change: "-2",
-    icon: Bell,
-    changeType: "negative" as const,
-  },
+  // {
+  //   title: "Active Escrows",
+  //   value: "$2.4M",
+  //   change: "+8%",
+  //   icon: Lock,
+  //   changeType: "positive" as const,
+  // },
+  // {
+  //   title: "Pending Disputes",
+  //   value: "3",
+  //   change: "-2",
+  //   icon: Bell,
+  //   changeType: "negative" as const,
+  // },
   {
     title: "Delivery Success Rate",
     value: "98.7%",
@@ -35,9 +35,9 @@ const stats = [
 
 export function DashboardOverview() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="flex w-full gap-6">
       {stats.map((stat, index) => (
-        <Card key={index} className="hover:shadow-md transition-shadow">
+        <Card key={index} className="flex-1 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {stat.title}
@@ -46,9 +46,8 @@ export function DashboardOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">{stat.value}</div>
-            <p className={`text-xs ${
-              stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-            }`}>
+            <p className={`text-xs ${stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+              }`}>
               {stat.change} from last month
             </p>
           </CardContent>

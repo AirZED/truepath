@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+
 import { Transaction } from "@mysten/sui/transactions";
 
 import {
@@ -9,7 +10,7 @@ import {
     useCurrentAccount,
     useCurrentWallet,
 } from "@mysten/dapp-kit";
-import { PACKAGE_ID, PARTICIPANT_REGISTRY_ID, ROLE_MODULE_NAME } from "../lib/constants";
+import { PACKAGE_ID, PARTICIPANT_REGISTRY_ID, ROLE_MODULE_NAME, TRUEPATH_MODULE_NAME, PRODUCT_TYPE, USER_TYPE } from "../lib/constants";
 
 const errorMessages = {
     403: 'Operation forbidden: Insufficient permissions.',
@@ -29,27 +30,32 @@ const errorMessages = {
 
 
 // Mock data for now - this would be replaced with actual smart contract calls
-const MOCK_ROLES: Record<string, string[]> = {
-    // Add some test addresses with roles
-    "0x1234567890abcdef": ["MANUFACTURER", "ADMIN"],
-    "0xabcdef1234567890": ["SHIPPER"],
-    "0x9876543210fedcba": ["DISTRIBUTOR"],
-};
+// const MOCK_ROLES: Record<string, string[]> = {
+//     // Add some test addresses with roles
+//     "0x1234567890abcdef": ["MANUFACTURER", "ADMIN"],
+//     "0xabcdef1234567890": ["SHIPPER"],
+//     "0x9876543210fedcba": ["DISTRIBUTOR"],
+// };
 
 export const useUserRoles = () => {
     const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
     const currentAccount = useCurrentAccount();
     const suiClient = useSuiClient();
 
-    const [userRoles, setUserRoles] = useState<string[]>([]);
+
+
+    const [userRole, setUserRole] = useState<string[]>([]);
+    const [userDetails, setUserDetails] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Fetch user roles from smart contract
-    const { data: roles, isLoading: isRolesLoading } = useQuery({
-        queryKey: ['user-roles', currentAccount?.address],
-        queryFn: async () => {
-            if (!currentAccount?.address) return [];
+    const fetchUserRole = async () => {
+        if (!currentAccount?.address) {
+            setUserRole([]);
+            return;
+        }
 
+        setIsLoading(true);
+        try {
             console.log("Fetching roles")
 
             // TODO: Replace with actual smart contract call
@@ -58,26 +64,72 @@ export const useUserRoles = () => {
                 options: { showContent: true }
             });
 
-            console.log(registry)
-            // return await get_participant_roles(registry, currentAccount.address);
+            const registryContent = registry.data.content as any;
 
-            // Mock implementation for now
-            return MOCK_ROLES[currentAccount.address] || [];
-        },
-        enabled: !!currentAccount?.address,
-        refetchInterval: 30000, // Refetch every 30 seconds
-    });
+            console.log("registry", registryContent.fields.users)
+
+            const user = await suiClient.getObject({
+                id: registryContent.fields.id.id,
+                options: { showContent: true }
+            });
+
+            console.log("user", user)
+
+
+            // const objects = await client.getOwnedObjects({
+            //     owner: account!.address,
+            //     filter: { StructType: TODO_LIST_TYPE },
+            //     options: { showContent: true },
+            // });
+
+            const objects = await suiClient.getOwnedObjects({
+                owner: currentAccount!.address,
+                filter: { StructType: USER_TYPE },
+                options: { showContent: true },
+            });
+
+            console.log("User objects:", objects);
+
+            if (objects.data.length > 0) {
+                const userObject = objects.data[0];
+                const userContent = userObject.data?.content as any;
+
+                if (userContent && userContent.fields) {
+                    const userFields = userContent.fields;
+                    const roleType = userFields.role?.fields?.role_type;
+
+                    console.log("user", userFields)
+                    setUserDetails(userFields)
+
+                    console.log("User role type:", roleType);
+
+                    // Set the role in state
+                    if (roleType) {
+                        setUserRole([roleType]);
+                    } else {
+                        setUserRole([]);
+                    }
+                } else {
+                    setUserRole([]);
+                }
+            } else {
+                // No user object found for this address
+                setUserRole([]);
+            }
+        } catch (error) {
+            console.error("Error fetching user roles:", error);
+            setUserRole([]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        if (roles) {
-            setUserRoles(roles);
-        }
-    }, [roles]);
+        fetchUserRole();
+    }, [currentAccount?.address]);
 
     const registerRole = async (role_type: string, name: string, description: string,) => {
         if (!currentAccount?.address) return;
-
-
 
 
         setIsLoading(true);
@@ -98,13 +150,24 @@ export const useUserRoles = () => {
             let primaryCoin = null;
             let coinsToMerge = [];
 
+            console.log(coinObjects)
+
             for (const coin of coinObjects.data) {
                 if (parseInt(coin.balance) >= amountInMist) {
-                    console.log(typeof coin.balance)
+
+
+                    if (coinObjects.data.length == 1) {
+
+                        // when it is only one coin here, when trying to split down there it throws an error cos there is no way to fetch gas from
+
+                    }
+
                     primaryCoin = coin.coinObjectId;
+
                     break;
                 }
             }
+            // console.log(primaryCoin)
             if (!primaryCoin) {
                 primaryCoin = coinObjects.data[0].coinObjectId;
                 coinsToMerge = coinObjects.data.slice(1).map(coin => coin.coinObjectId);
@@ -114,6 +177,8 @@ export const useUserRoles = () => {
             }
 
             const [transferCoin] = tx.splitCoins(primaryCoin, [tx.pure.u64(amountInMist)]);
+
+            console.log(transferCoin)
 
             if (role_type == "MANUFACTURER") {
 
@@ -150,11 +215,10 @@ export const useUserRoles = () => {
             // }
 
 
-            // Mock implementation
-            console.log(`Registering manufacturer: ${name} - ${description}`);
+            console.log(`Successfully registered role: ${role_type}`);
 
-            // Update local state
-            setUserRoles(prev => [...prev, "MANUFACTURER"]);
+            // Update local state with the registered role
+            setUserRole(prev => [...prev, role_type]);
 
         } catch (error) {
             console.error("Error registering manufacturer:", error);
@@ -173,7 +237,7 @@ export const useUserRoles = () => {
     }
 
     const hasRole = (role: string): boolean => {
-        return userRoles.includes(role);
+        return userRole.includes(role);
     };
 
     const isManufacturer = hasRole("MANUFACTURER");
@@ -183,10 +247,10 @@ export const useUserRoles = () => {
     const isRetailer = hasRole("RETAILER");
 
     return {
-        userRoles,
-        isLoading: isLoading || isRolesLoading,
+        userRoles: userRole,
+        isLoading,
         registerRole,
-        voteforUser, unVoteUser,
+        voteforUser, unVoteUser, userDetails,
         hasRole,
         isManufacturer,
         isAdmin,

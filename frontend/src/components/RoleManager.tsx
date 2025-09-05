@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useUser } from "@/contexts/UserContext";
 import {
     Building2,
     UserCheck,
@@ -18,18 +19,37 @@ import {
     User,
     AlertCircle,
     CheckCircle,
-    Loader2
+    Loader2,
+    Star,
+    Calendar,
+    Award,
+    UserPlus,
+    Copy,
+    RefreshCw
 } from "lucide-react";
 
 // Smart contract constants
 const MIN_VOTE_WEIGHT = 5;
 
 
+interface UserDetails {
+    name: string;
+    approved: boolean;
+    endorsers: string[];
+    trust_score: string;
+    total_vote_weight: string;
+    issued_at: string;
+    role: {
+        fields: {
+            name: string;
+            permissions: string[];
+            role_type: string;
+        };
+    };
+}
+
 interface RoleManagerProps {
-    userRoles: string[];
-    onRegisterRole: (roleType: string, name: string, description: string, payment?: number) => Promise<void>;
-    onVoteForUser: (targetAddress: string) => Promise<void>;
-    onUnvoteForUser: (targetAddress: string) => Promise<void>;
+    // No props needed - using context instead
 }
 
 interface RoleInfo {
@@ -90,13 +110,15 @@ const ROLE_TYPES: RoleInfo[] = [
     }
 ];
 
-export const RoleManager = ({
-    userRoles,
-    onRegisterRole,
-    onVoteForUser,
-    onUnvoteForUser
-}: RoleManagerProps) => {
+export const RoleManager = ({ }: RoleManagerProps) => {
     const currentAccount = useCurrentAccount();
+    const {
+        userRoles,
+        userDetails,
+        registerRole,
+        voteforUser,
+        unVoteUser
+    } = useUser();
 
     const [selectedRole, setSelectedRole] = useState<string>("");
     const [roleName, setRoleName] = useState("");
@@ -108,6 +130,13 @@ export const RoleManager = ({
 
     const selectedRoleInfo = ROLE_TYPES.find(role => role.type === selectedRole);
 
+
+    const handleCopy = () => {
+        if (currentAccount?.address) {
+            navigator.clipboard.writeText(currentAccount.address);
+            alert("Wallet address copied")
+        }
+    };
 
     const handleRegisterRole = async () => {
         if (!selectedRole || !roleName.trim() || !roleDescription.trim()) {
@@ -121,8 +150,8 @@ export const RoleManager = ({
         setSuccess("");
 
         try {
-            // Call the parent component's handler
-            await onRegisterRole(selectedRole, roleName, roleDescription);
+            // Call the context's registerRole function
+            await registerRole(selectedRole, roleName, roleDescription);
             setSuccess(`Successfully registered as ${selectedRoleInfo?.name}!`);
             setRoleName("");
             setRoleDescription("");
@@ -135,6 +164,8 @@ export const RoleManager = ({
             setIsLoading(false);
         }
     };
+
+    console.log(userDetails)
 
     return (
         <div className="space-y-6">
@@ -151,7 +182,7 @@ export const RoleManager = ({
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-5">
                             <span className="text-sm font-medium">Wallet Address:</span>
                             <span className="text-sm font-mono text-gray-600">
                                 {currentAccount?.address ?
@@ -159,10 +190,96 @@ export const RoleManager = ({
                                     "Not connected"
                                 }
                             </span>
+                            {currentAccount?.address && (
+                                <button
+                                    onClick={handleCopy}
+                                    className="p-1 rounded hover:bg-gray-100 transition"
+                                    title="Copy wallet address"
+                                >
+                                    <Copy size={16} className="text-gray-600" />
+                                </button>
+                            )}
                         </div>
 
+                        {userDetails && (
+                            <>
+                                <div className="flex items-center gap-5">
+                                    <span className="text-sm font-medium flex items-center gap-1">
+                                        <User className="w-4 h-4" />
+                                        Name:
+                                    </span>
+                                    <span className="text-sm font-medium">{userDetails.name}</span>
+                                </div>
+
+                                <div className="flex items-center gap-5">
+                                    <span className="text-sm font-medium flex items-center gap-1">
+                                        <Award className="w-4 h-4" />
+                                        Status:
+                                    </span>
+                                    <Badge variant={userDetails.approved ? "default" : "destructive"}>
+                                        {userDetails.approved ? "Approved" : "Pending"}
+                                    </Badge>
+                                </div>
+
+                                <div className="flex items-center gap-5">
+                                    <span className="text-sm font-medium flex items-center gap-1">
+                                        <Star className="w-4 h-4" />
+                                        Trust Score:
+                                    </span>
+                                    <span className="text-sm font-medium">{userDetails.trust_score}</span>
+                                </div>
+
+                                <div className="flex items-center gap-5">
+                                    <span className="text-sm font-medium flex items-center gap-1">
+                                        <UserPlus className="w-4 h-4" />
+                                        Vote Weight:
+                                    </span>
+                                    <span className="text-sm font-medium">{userDetails.total_vote_weight}</span>
+                                </div>
+
+                                <div className="flex items-center gap-5">
+                                    <span className="text-sm font-medium flex items-center gap-1">
+                                        <Calendar className="w-4 h-4" />
+                                        Registered:
+                                    </span>
+                                    <span className="text-sm text-gray-600">
+                                        {new Date(parseInt(userDetails.issued_at)).toLocaleDateString()}
+                                    </span>
+                                </div>
+
+                                {userDetails.endorsers.length > 0 && (
+                                    <div className="space-y-2">
+                                        <span className="text-sm font-medium flex items-center gap-1">
+                                            <Users className="w-4 h-4" />
+                                            Endorsers ({userDetails.endorsers.length}):
+                                        </span>
+                                        <div className="flex flex-wrap gap-1">
+                                            {userDetails.endorsers.map((endorser, index) => (
+                                                <Badge key={index} variant="outline" className="text-xs">
+                                                    {`${endorser.slice(0, 6)}...${endorser.slice(-4)}`}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {userDetails.role.fields && userDetails.role.fields.permissions.length > 0 && (
+                                    <div className=" items-start gap-5 flex ">
+                                        <span className="text-sm font-medium">Permissions:</span>
+                                        <div className="flex flex-wrap gap-1">
+                                            {userDetails.role.fields.permissions.map((permission, index) => (
+                                                <Badge key={index} variant="secondary" className="text-xs">
+                                                    {permission}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
                         <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">Roles:</span>
+                            <span className="text-sm font-medium">Current Role:</span>
                             {userRoles.length > 0 ? (
                                 userRoles.map((role) => (
                                     <Badge key={role} variant="secondary">
@@ -192,16 +309,28 @@ export const RoleManager = ({
                 </Alert>
             )}
 
-            {/* Role Registration */}
+            {/* Role Registration/Switch */}
             {!showRegisterForm ? (
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Shield className="w-5 h-5" />
-                            Register for a Role
+                            {userRoles.length > 0 ? (
+                                <>
+                                    <RefreshCw className="w-5 h-5" />
+                                    Switch Role
+                                </>
+                            ) : (
+                                <>
+                                    <Shield className="w-5 h-5" />
+                                    Register for a Role
+                                </>
+                            )}
                         </CardTitle>
                         <CardDescription>
-                            Choose a role to register for in the supply chain
+                            {userRoles.length > 0
+                                ? "Switch to a different role in the supply chain"
+                                : "Choose a role to register for in the supply chain"
+                            }
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -215,6 +344,8 @@ export const RoleManager = ({
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                     Loading...
                                 </>
+                            ) : userRoles.length > 0 ? (
+                                "Switch Role"
                             ) : (
                                 "Register for a Role"
                             )}
@@ -225,8 +356,17 @@ export const RoleManager = ({
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Shield className="w-5 h-5" />
-                            Register as {selectedRoleInfo?.name || "Role"}
+                            {userRoles.length > 0 ? (
+                                <>
+                                    <RefreshCw className="w-5 h-5" />
+                                    Switch to {selectedRoleInfo?.name || "Role"}
+                                </>
+                            ) : (
+                                <>
+                                    <Shield className="w-5 h-5" />
+                                    Register as {selectedRoleInfo?.name || "Role"}
+                                </>
+                            )}
                         </CardTitle>
                         <CardDescription>
                             {selectedRoleInfo?.description}
@@ -302,8 +442,10 @@ export const RoleManager = ({
                                     {isLoading ? (
                                         <>
                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Registering...
+                                            {userRoles.length > 0 ? "Switching..." : "Registering..."}
                                         </>
+                                    ) : userRoles.length > 0 ? (
+                                        `Switch to ${selectedRoleInfo?.name || "Role"}`
                                     ) : (
                                         `Register as ${selectedRoleInfo?.name || "Role"}`
                                     )}

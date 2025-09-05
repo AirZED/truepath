@@ -91,3 +91,6 @@ The frontend integrates with the TruePATH Move smart contracts:
 - `truepath::roles` - Role-based access control
 - Participant registry for user management
 - Hash chain verification for supply chain integrity
+
+
+<!-- https://app.example.com/product/<object_id>?sku=<sku>&batch=<batch_id> -->

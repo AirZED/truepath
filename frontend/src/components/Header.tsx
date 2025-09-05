@@ -21,8 +21,8 @@ export const Header = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 w-full px-4 sm:px-6 py-3 bg-background/95 backdrop-blur-sm z-50 border-b border-gray-200 h-16">
-      <nav className="max-w-7xl mx-auto flex items-center justify-between h-full">
+    <header className="fixed top-0 left-0 right-0 w-full px-[2rem] sm:px-[2rem] py-3 bg-background/95 backdrop-blur-sm z-50 border-b border-gray-200 h-16">
+      <nav className="max-w-full mx-auto flex items-center justify-between h-full">
         {/* Logo */}
         <div className="flex items-center gap-4 sm:gap-6">
           <Link
@@ -35,7 +35,7 @@ export const Header = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6 ml-8">
+          {/* <div className="hidden md:flex items-center gap-6 ml-8">
             <NavLink
               className={({ isActive }) =>
                 `transition-colors text-[.9rem] flex items-center justify-center gap-[0.5rem] ${isActive
@@ -69,7 +69,7 @@ export const Header = () => {
             >
               About Us
             </NavLink>
-          </div>
+          </div> */}
         </div>
 
         {/* Right side actions */}
