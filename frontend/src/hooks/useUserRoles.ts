@@ -240,6 +240,8 @@ export const useUserRoles = () => {
         return userRole.includes(role);
     };
 
+    
+
     const isManufacturer = hasRole("MANUFACTURER");
     const isAdmin = hasRole("ADMIN");
     const isShipper = hasRole("SHIPPER");

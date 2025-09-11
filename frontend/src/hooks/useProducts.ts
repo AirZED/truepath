@@ -31,7 +31,7 @@ export interface Product {
 export interface CreateProductData {
     sku: string;
     batch_id: string;
-    head_hash: string;
+    price: string;
     total_steps: number;
     stage_names: string[];
     stage_roles: string[];
@@ -60,7 +60,7 @@ export const useProducts = () => {
     const currentAccount = useCurrentAccount();
     const suiClient = useSuiClient();
     const queryClient = useQueryClient();
-    const { hasRole, isManufacturer } = useUserRoles();
+    const { hasRole, isManufacturer, userDetails } = useUserRoles();
 
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -89,22 +89,33 @@ export const useProducts = () => {
             try {
                 const tx = new Transaction();
 
-                tx.moveCall({
+                const priceInMist = BigInt(Math.floor(parseFloat(productData.price) * 1_000_000_000));
+
+                console.log(userDetails.id.id)
+                const product = tx.moveCall({
                     target: `${PACKAGE_ID}::${TRUEPATH_MODULE_NAME}::mint_product`,
                     arguments: [
                         tx.object(PARTICIPANT_REGISTRY_ID),
+                        tx.object(userDetails.id.id),
                         tx.pure.string(productData.sku),
                         tx.pure.string(productData.batch_id),
-                        tx.pure.bytes(productData.head_hash),
+                        tx.pure.u64(priceInMist),
                         tx.pure.u32(productData.total_steps),
-                        tx.pure.array(productData.stage_names.map(name => tx.pure.string(name))),
-                        tx.pure.array(productData.stage_roles.map(role => tx.pure.string(role))),
+                        tx.pure.vector("string", productData.stage_names),
+                        tx.pure.vector("string", productData.stage_roles),
                     ],
                 });
+
+                // Transfer the Product to the caller's address
+                tx.transferObjects([product], currentAccount.address);
+
 
                 const result = await signAndExecute({
                     transaction: tx,
                 });
+
+                console.log("result", result)
+
 
                 if (result.effects?.status.status === 'failure') {
                     const error = result.effects.status.error;

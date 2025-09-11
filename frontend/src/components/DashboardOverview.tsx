@@ -10,13 +10,13 @@ const stats = [
     icon: Truck,
     changeType: "positive" as const,
   },
-  // {
-  //   title: "Active Escrows",
-  //   value: "$2.4M",
-  //   change: "+8%",
-  //   icon: Lock,
-  //   changeType: "positive" as const,
-  // },
+  {
+    title: "Active Escrows",
+    value: "$2.4M",
+    change: "+8%",
+    icon: Lock,
+    changeType: "positive" as const,
+  },
   // {
   //   title: "Pending Disputes",
   //   value: "3",
