@@ -3,17 +3,13 @@
 module truepath::roles;
 
 use std::debug;
-use std::option;
 use std::string::{Self, String};
-use std::vector;
 use sui::coin::{Self, Coin};
 use sui::event;
-use sui::object::{Self as obj, UID};
-use sui::pay;
+use sui::object::{Self as obj};
 use sui::sui::SUI;
 use sui::table::{Self, Table};
-use sui::transfer;
-use sui::tx_context::{Self as tx, TxContext};
+use sui::tx_context::{Self as tx};
 
 // Constants
 const MIN_VOTE_WEIGHT: u64 = 5; // Minimum total trust score weight for endorsements
