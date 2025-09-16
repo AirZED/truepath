@@ -11,6 +11,7 @@ import { Header } from "@/components/Header";
 import { WalletGate } from "@/components/WalletGate";
 import { RoleManager } from "@/components/RoleManager";
 import { UserProvider } from "@/contexts/UserContext";
+import EscrowsPage from "../components/EscrowsPage";
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState("dashboard");
@@ -55,6 +56,7 @@ const Index = () => {
                   )}
                   {activeSection === "shipments" && <ShipmentsPage />}
                   {activeSection === "roles" && <RoleManager />}
+                  {activeSection === "escrows" && <EscrowsPage/>}
                 </div>
               </main>
             </div>

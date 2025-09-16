@@ -37,11 +37,11 @@ const menuItems = [
     id: "shipments",
     icon: Truck,
   },
-  // {
-  //   title: "Escrows",
-  //   id: "escrows",
-  //   icon: Warehouse,
-  // },
+  {
+    title: "Escrows",
+    id: "escrows",
+    icon: Warehouse,
+  },
   // {
   //   title: "Disputes",
   //   id: "disputes",
@@ -77,7 +77,9 @@ export function AppSidebar({
               <Store className="w-4 h-4 text-primary-foreground" />
             </div>
             <div className="hidden sm:block">
-              <h2 className="text-lg font-semibold text-foreground">TruePATH</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                TruePATH
+              </h2>
               <p className="text-sm text-muted-foreground">Supply Dashboard</p>
             </div>
             <div className="sm:hidden">
@@ -96,13 +98,16 @@ export function AppSidebar({
                   <SidebarMenuItem key={item.id}>
                     <SidebarMenuButton
                       onClick={() => setActiveSection(item.id)}
-                      className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 rounded-lg transition-colors ${activeSection === item.id
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-accent text-muted-foreground hover:text-foreground"
-                        }`}
+                      className={`w-full flex items-center space-x-2 sm:space-x-3 px-2 sm:px-3 py-2 rounded-lg transition-colors ${
+                        activeSection === item.id
+                          ? "bg-primary text-primary-foreground"
+                          : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                      }`}
                     >
                       <item.icon className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm font-medium truncate">{item.title}</span>
+                      <span className="text-sm font-medium truncate">
+                        {item.title}
+                      </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}

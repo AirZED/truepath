@@ -1,11 +1,30 @@
-
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Clock, CheckCircle, AlertTriangle, DollarSign, Users } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Shield,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  DollarSign,
+  Users,
+} from "lucide-react";
 
 const EscrowsPage = () => {
   const [selectedTab, setSelectedTab] = useState("active");
@@ -20,7 +39,7 @@ const EscrowsPage = () => {
       status: "locked",
       created: "2024-01-15",
       releaseCondition: "Delivery confirmation",
-      progress: 65
+      progress: 65,
     },
     {
       id: "ESC-002",
@@ -31,7 +50,7 @@ const EscrowsPage = () => {
       status: "pending_release",
       created: "2024-01-10",
       releaseCondition: "Quality inspection",
-      progress: 90
+      progress: 90,
     },
     {
       id: "ESC-003",
@@ -42,7 +61,7 @@ const EscrowsPage = () => {
       status: "released",
       created: "2024-01-05",
       releaseCondition: "Completed",
-      progress: 100
+      progress: 100,
     },
     {
       id: "ESC-004",
@@ -53,32 +72,43 @@ const EscrowsPage = () => {
       status: "disputed",
       created: "2024-01-12",
       releaseCondition: "Dispute resolution",
-      progress: 45
-    }
+      progress: 45,
+    },
   ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "locked": return "bg-blue-100 text-blue-800";
-      case "pending_release": return "bg-yellow-100 text-yellow-800";
-      case "released": return "bg-green-100 text-green-800";
-      case "disputed": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "locked":
+        return "bg-blue-100 text-blue-800";
+      case "pending_release":
+        return "bg-yellow-100 text-yellow-800";
+      case "released":
+        return "bg-green-100 text-green-800";
+      case "disputed":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "locked": return <Shield className="w-4 h-4" />;
-      case "pending_release": return <Clock className="w-4 h-4" />;
-      case "released": return <CheckCircle className="w-4 h-4" />;
-      case "disputed": return <AlertTriangle className="w-4 h-4" />;
-      default: return <Shield className="w-4 h-4" />;
+      case "locked":
+        return <Shield className="w-4 h-4" />;
+      case "pending_release":
+        return <Clock className="w-4 h-4" />;
+      case "released":
+        return <CheckCircle className="w-4 h-4" />;
+      case "disputed":
+        return <AlertTriangle className="w-4 h-4" />;
+      default:
+        return <Shield className="w-4 h-4" />;
     }
   };
 
-  const filteredEscrows = escrows.filter(escrow => {
-    if (selectedTab === "active") return escrow.status === "locked" || escrow.status === "pending_release";
+  const filteredEscrows = escrows.filter((escrow) => {
+    if (selectedTab === "active")
+      return escrow.status === "locked" || escrow.status === "pending_release";
     if (selectedTab === "completed") return escrow.status === "released";
     if (selectedTab === "disputed") return escrow.status === "disputed";
     return true;
@@ -88,10 +118,13 @@ const EscrowsPage = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Escrow Management</h1>
-          <p className="text-muted-foreground">Secure payment management for supply chain transactions</p>
+          <h1 className="text-3xl font-bold text-foreground">
+            Escrow Management
+          </h1>
+          <p className="text-muted-foreground">
+            Secure payment management for supply chain transactions
+          </p>
         </div>
-        <Button>Create New Escrow</Button>
       </div>
 
       {/* Summary Cards */}
@@ -103,12 +136,16 @@ const EscrowsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">$81,250</div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
+            <p className="text-xs text-muted-foreground">
+              +12% from last month
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Escrows</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Active Escrows
+            </CardTitle>
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -133,7 +170,9 @@ const EscrowsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">2</div>
-            <p className="text-xs text-muted-foreground">Urgent attention needed</p>
+            <p className="text-xs text-muted-foreground">
+              Urgent attention needed
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -142,7 +181,9 @@ const EscrowsPage = () => {
       <Card>
         <CardHeader>
           <CardTitle>Escrow Transactions</CardTitle>
-          <CardDescription>Manage and monitor all escrow payments</CardDescription>
+          <CardDescription>
+            Manage and monitor all escrow payments
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={selectedTab} onValueChange={setSelectedTab}>
@@ -169,32 +210,42 @@ const EscrowsPage = () => {
                   {filteredEscrows.map((escrow) => (
                     <TableRow key={escrow.id}>
                       <TableCell className="font-medium">{escrow.id}</TableCell>
-                      <TableCell className="font-semibold">{escrow.amount}</TableCell>
+                      <TableCell className="font-semibold">
+                        {escrow.amount}
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <div className="text-sm">{escrow.buyer}</div>
-                          <div className="text-xs text-muted-foreground">↓ {escrow.seller}</div>
+                          <div className="text-xs text-muted-foreground">
+                            ↓ {escrow.seller}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{escrow.product}</TableCell>
                       <TableCell>
                         <Badge className={getStatusColor(escrow.status)}>
                           {getStatusIcon(escrow.status)}
-                          <span className="ml-1 capitalize">{escrow.status.replace('_', ' ')}</span>
+                          <span className="ml-1 capitalize">
+                            {escrow.status.replace("_", " ")}
+                          </span>
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
+                          <div
+                            className="bg-blue-600 h-2 rounded-full"
                             style={{ width: `${escrow.progress}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs text-muted-foreground">{escrow.progress}%</span>
+                        <span className="text-xs text-muted-foreground">
+                          {escrow.progress}%
+                        </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
-                          <Button variant="outline" size="sm">View</Button>
+                          <Button variant="outline" size="sm">
+                            View
+                          </Button>
                           {escrow.status === "pending_release" && (
                             <Button size="sm">Release</Button>
                           )}
